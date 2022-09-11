@@ -4,33 +4,8 @@ const ADDRESS: &str = "localhost:8000";
 
 enum Msg {
     NewConnection(std::net::SocketAddr, tokio::net::TcpStream),
-    FromClient(std::net::SocketAddr, String),
+    FromClient(u64, String),
     Disconnect(u64),
-    Msg(String),
-}
-
-struct Player {
-    address: std::net::SocketAddr,
-    stream: tokio::net::TcpStream,
-    rx: tokio::sync::mpsc::Receiver<Msg>,
-}
-
-impl Player {
-    fn new(
-        address: std::net::SocketAddr,
-        stream: tokio::net::TcpStream,
-    ) -> (Player, tokio::sync::mpsc::Sender<Msg>) {
-        let (tx, rx) = tokio::sync::mpsc::channel(5);
-
-        (
-            Player {
-                address,
-                stream,
-                rx,
-            },
-            tx,
-        )
-    }
 }
 
 async fn connections_manager(
@@ -38,18 +13,16 @@ async fn connections_manager(
     tx: tokio::sync::mpsc::Sender<Msg>,
 ) {
     loop {
-        println!("Waiting for new connection");
         let (stream, address) = listener.accept().await.unwrap();
-        println!("New connection found");
         tx.send(Msg::NewConnection(address, stream)).await;
     }
 }
 
-async fn kkk(
+async fn client_communication(
     mut stream: tokio::net::TcpStream,
     id: u64,
-    tx: tokio::sync::mpsc::Sender<Msg>,
-    mut rx: tokio::sync::mpsc::Receiver<String>,
+    tx_game: tokio::sync::mpsc::Sender<Msg>,
+    mut rx_client: tokio::sync::mpsc::Receiver<String>,
 ) {
     let (reader, mut writer) = stream.split();
 
@@ -59,88 +32,84 @@ async fn kkk(
 
     loop {
         tokio::select! {
+            // Reading input from client
             msg_length = buff.read_line(&mut line) => {
-                println!("dddd");
+                // Connection closed
                 if msg_length.unwrap() == 0 {
-
-
-                    let a = tx.send(Msg::Disconnect(id)).await;
-
-                    // match a {
-                    //     Ok(()) => println!("Ok"),
-                    //     Err(e) => println!("Err")
-                    // }
-
-                    // tx.send(Msg::Msg("sdfd".to_string()));
+                    tx_game.send(Msg::Disconnect(id)).await;
                     return ;
                 }
-                tx.send(Msg::Msg(line.clone())).await;
-
-                // match a {
-                //     Ok()
-                // }
-                // println!("{:?}", );
+                // Send message from client
+                tx_game.send(Msg::FromClient(id, line.clone())).await;
                 line.clear();
-
             }
-            msg = rx.recv() => {
+            // Sending message to client
+            msg = rx_client.recv() => {
                 writer.write_all(msg.unwrap().as_bytes()).await;
             }
         }
     }
 }
 
-async fn game(tx: tokio::sync::mpsc::Sender<Msg>, mut rx: tokio::sync::mpsc::Receiver<Msg>) {
+async fn game(
+    tx_game: tokio::sync::mpsc::Sender<Msg>,
+    mut rx_game: tokio::sync::mpsc::Receiver<Msg>,
+) {
     let mut players = std::collections::HashMap::new();
 
     let mut id = 1_u64;
 
     loop {
-        println!("Waiting for new msg");
-        match rx.recv().await.unwrap() {
-            Msg::NewConnection(addr, stream) => {
+        match rx_game.recv().await.unwrap() {
+            // Connected new player
+            Msg::NewConnection(_, stream) => {
+                // Players already connected
                 if players.len() == 2 {
                     println!("Currently are all players connected.");
                 } else {
-                    let (str_tx, str_rx) = tokio::sync::mpsc::channel(5);
+                    let (tx_client, rx_client) = tokio::sync::mpsc::channel(5);
 
-                    // let x = str_tx.clone();
+                    players.insert(id, tx_client);
 
-                    players.insert(id, str_tx);
+                    tokio::spawn(client_communication(stream, id, tx_game.clone(), rx_client));
 
-                    let xxx = tx.clone();
+                    players[&id]
+                        .send(format!("Welcome to new game player {}\n", id))
+                        .await;
 
-                    tokio::spawn(kkk(stream, id, xxx, str_rx));
+                    if players.len() == 1 {
+                        players[&id]
+                            .send("Waiting for another player\n".to_string())
+                            .await;
+                    } else {
+                        for (_, tx_client) in players.iter() {
+                            tx_client
+                                .send("Both player are connected\n".to_string())
+                                .await;
+                        }
+                    }
 
                     id += 1;
                 }
             }
-            Msg::Disconnect(id) => {
-                println!("dddddddddd");
+            // Message from client
+            Msg::FromClient(id, msg) => println!("Message from user {}: {}", id, msg),
 
-                println!("{}", players.contains_key(&id));
-                print!("Disc");
+            // Client disconnected
+            Msg::Disconnect(id) => {
+                players.remove(&id);
+
+                match players.keys().next() {
+                    Some(x) => {
+                        players[x]
+                            .send("Another player leave game.\n".to_string())
+                            .await;
+                    }
+                    _ => (),
+                }
             }
             _ => println!("Other operation"),
         };
-        println!("Connected");
-    }
-}
-
-async fn neco(tx: tokio::sync::mpsc::Sender<Msg>, time: u64, id: u8) {
-    for _ in 0..11 {
-        println!("Id: {} - sleep: {}", id, time);
-        tx.send(Msg::Msg("Neoc".to_string())).await;
-        tokio::time::sleep(std::time::Duration::from_secs(time)).await;
-    }
-}
-
-async fn dva(mut rx: tokio::sync::mpsc::Receiver<Msg>) {
-    while let Some(x) = rx.recv().await {
-        match x {
-            Msg::Msg(k) => println!("Received data: {}", k),
-            _ => (),
-        }
     }
 }
 
@@ -154,11 +123,9 @@ async fn main() {
         }
     };
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+    let (tx, rx) = tokio::sync::mpsc::channel(10);
 
-    let x = tx.clone();
-
-    tokio::join!(connections_manager(listener, tx), game(x, rx));
+    tokio::join!(connections_manager(listener, tx.clone()), game(tx, rx));
 
     println!("Hello, world!");
 }
