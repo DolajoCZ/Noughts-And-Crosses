@@ -10,6 +10,22 @@ pub enum PlayerName {
     Cross,
 }
 
+impl std::fmt::Display for PlayerName {
+    #[rustfmt::skip]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Circle => "o",
+            Self::Cross => "x"
+        };
+        
+        write!(f, "{}", name)
+    }
+}
+
+
+
+
+
 pub enum Msg {
     NewConnection(std::net::SocketAddr, tokio::net::TcpStream),
     FromClient(PlayerName, String),
@@ -29,6 +45,18 @@ async fn connection_listener(
 }
 
 // ---- Messages ----
+
+async fn send_new_game_round(
+    player_on_move: &player::Player,
+    player_waiting: &player::Player,
+    field: &field::Field,
+) {
+    msgs::send_field(player_on_move, field).await;
+    msgs::send_field(player_waiting, field).await;
+
+    msgs::send_you_move(player_on_move).await;
+    msgs::send_other_player_is_on_move(player_waiting).await;
+}
 
 #[derive(PartialEq)]
 enum GameStage {
@@ -93,37 +121,37 @@ async fn game(
                     let player_ = players.get(&player_on_move).unwrap();
 
                     match field.new_move(&msg, player_name) {
-                        Ok(res) => match res {
-                            field::ValidMove::Continue => {
-                                for player in players.values() {
-                                    msgs::send_field(player, &field).await;
+                        Ok(res) => {
+                            match res {
+                                field::ValidMove::Continue => (),
+                                field::ValidMove::Draw => {
+                                    for player in players.values() {
+                                        msgs::send_field(player, &field).await;
+                                        msgs::send_draw(player).await
+                                    }
+                                    field = field::Field::new();
                                 }
+                                field::ValidMove::Win => {
+                                    for player in players.values() {
+                                        msgs::send_field(player, &field).await;
+                                    }
 
-                                (player_on_move, player_waiting) = (player_waiting, player_on_move);
-                                msgs::send_you_move(players.get(&player_on_move).unwrap()).await;
-                                msgs::send_other_player_is_on_move(
-                                    players.get(&player_waiting).unwrap(),
-                                )
-                                .await;
-                            }
-                            field::ValidMove::Draw => {
-                                for player in players.values() {
-                                    msgs::send_field(player, &field).await;
-                                    msgs::send_draw(player).await
-                                }
-                                field = field::Field::new();
-                            }
-                            field::ValidMove::Win => {
-                                for player in players.values() {
-                                    msgs::send_field(player, &field).await;
-                                }
+                                    msgs::send_win(players.get(&player_on_move).unwrap()).await;
+                                    msgs::send_lose(players.get(&player_waiting).unwrap()).await;
 
-                                msgs::send_win(players.get(&player_on_move).unwrap()).await;
-                                msgs::send_lose(players.get(&player_waiting).unwrap()).await;
-                                (player_on_move, player_waiting) = (player_waiting, player_on_move);
-                                field = field::Field::new();
+                                    field = field::Field::new();
+                                }
                             }
-                        },
+
+                            (player_on_move, player_waiting) = (player_waiting, player_on_move);
+
+                            send_new_game_round(
+                                players.get(&player_on_move).unwrap(),
+                                players.get(&player_waiting).unwrap(),
+                                &field,
+                            )
+                            .await;
+                        }
                         Err(err) => match err {
                             field::InvalidMove::AlreadyUsed => {
                                 msgs::send_already_taken(player_).await
@@ -139,8 +167,19 @@ async fn game(
             Msg::Disconnect(id) => {
                 players.remove(&id);
 
+                if game_stage == GameStage::PlayerOnMove {
+                    field = field::Field::new();
+                }
+
                 if players.len() == 1 {
-                    msgs::send_players_leave_game(players.values().next().unwrap()).await;
+                    let player_ = players.values().next().unwrap();
+
+                    if player_.get_name() == player_on_move {
+                        player_.send_msg_to_player("\n".to_owned()).await
+                    }
+
+                    msgs::send_players_leave_game(player_).await;
+                    msgs::send_waiting_for_another_player(player_).await;
                     game_stage = GameStage::WaitingForPlayer(id);
                 } else {
                     game_stage = GameStage::WaitingForPlayers;

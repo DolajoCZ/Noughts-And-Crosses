@@ -176,7 +176,7 @@ impl Field {
     }
 }
 
-fn neco(field: SingleField) -> &'static str {
+fn field_to_str(field: SingleField) -> &'static str {
     match field {
         Some(x) => match x {
             super::PlayerName::Circle => "o",
@@ -200,15 +200,15 @@ impl std::fmt::Display for Field {
              3│{}│{}│{}│3\n\
              ─┼─┼─┼─┼─\n \
               │1│2│3│ \n",
-            neco(self.fields[0]),
-            neco(self.fields[1]),
-            neco(self.fields[2]),
-            neco(self.fields[3]),
-            neco(self.fields[4]),
-            neco(self.fields[5]),
-            neco(self.fields[6]),
-            neco(self.fields[7]),
-            neco(self.fields[8])
+            field_to_str(self.fields[0]),
+            field_to_str(self.fields[1]),
+            field_to_str(self.fields[2]),
+            field_to_str(self.fields[3]),
+            field_to_str(self.fields[4]),
+            field_to_str(self.fields[5]),
+            field_to_str(self.fields[6]),
+            field_to_str(self.fields[7]),
+            field_to_str(self.fields[8])
         )
     }
 }
