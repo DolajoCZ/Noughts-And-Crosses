@@ -35,10 +35,10 @@ async fn client_communication(
             }
             // Sending message to client
             msg = rx_client.recv() => {
-                let mut a = msg.unwrap();
-                a.push_str("\n");
+                // let mut a = msg.unwrap();
+                // a.push_str("\n");
 
-                writer.write_all(a.as_bytes()).await;
+                writer.write_all(msg.unwrap().as_bytes()).await;
             }
         }
     }

@@ -86,8 +86,7 @@ fn check_for_win(field: &Field, position: usize) -> bool {
 }
 
 // ---- Check field for draw ----
-
-fn is_line_capable<'a, T>(mut data: T) -> bool
+fn is_line_capable<'a, T>(data: T) -> bool
 where
     T: Iterator<Item = &'a Option<Symbols>>,
 {
@@ -99,11 +98,7 @@ where
             },
             None => 100,
         }
-
-        // sum + value
     });
-
-    println!("{}", score);
 
     !(score == 12 || score == 21 || score == 111)
 }
@@ -151,7 +146,6 @@ impl Field {
 
     pub fn new_move(&mut self, input: &str, symbol: Symbols) -> Result<ValidMove, InvalidMove> {
         // Parse coordinates
-        println!("-{}-", input);
         let [x, y] = match convert_input_to_coordinates(input) {
             Ok(k) => k,
             Err(e) => match e {
@@ -174,13 +168,8 @@ impl Field {
         }
 
         if check_for_draw(&self) {
-            println!("dddd");
             return Ok(ValidMove::Draw);
         }
-
-        // let row_iter = get_row_iter(&self, 2);
-
-        // are_same_some_values(row_iter);
 
         Ok(ValidMove::Continue)
     }
@@ -201,7 +190,15 @@ impl std::fmt::Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}{}{}\n{}{}{}\n{}{}{}\n",
+            " │1│2│3│ \n\
+             ─┼─┼─┼─┼─\n\
+             1│{}│{}│{}│1\n\
+             ─┼─┼─┼─┼─\n\
+             2│{}│{}│{}│2\n\
+             ─┼─┼─┼─┼─\n\
+             3│{}│{}│{}│3\n\
+             ─┼─┼─┼─┼─\n \
+              │1│2│3│ \n",
             neco(self.fields[0]),
             neco(self.fields[1]),
             neco(self.fields[2]),
