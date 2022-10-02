@@ -23,7 +23,7 @@ fn convert_input_to_coordinates(input: &str) -> Result<[usize; 2], ConvertError>
 
     let x = convert_input_to_coordinate(&input[0..1])?;
     let y = convert_input_to_coordinate(&input[1..2])?;
-    Ok([x, y])
+    Ok([x - 1, y - 1])
 }
 
 // ---- Get iteration over "lines" ----
@@ -91,7 +91,7 @@ fn is_line_capable<'a, T>(mut data: T) -> bool
 where
     T: Iterator<Item = &'a Option<Symbols>>,
 {
-    let score = data.fold(0_u8, |sum, item| {
+    let score = data.fold(0_u16, |sum, item| {
         sum + match item {
             Some(x) => match x {
                 Symbols::Circle => 1,
@@ -103,7 +103,9 @@ where
         // sum + value
     });
 
-    score == 12 || score == 21 || score == 111
+    println!("{}", score);
+
+    !(score == 12 || score == 21 || score == 111)
 }
 
 fn check_for_draw(field: &Field) -> bool {
@@ -119,36 +121,37 @@ fn check_for_draw(field: &Field) -> bool {
 
 // ---- Field struct ----
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
-enum Symbols {
+pub enum Symbols {
     Cross,
     Circle,
 }
 
-struct Field {
+pub struct Field {
     fields: [Option<Symbols>; 9],
 }
 
-enum InvalidMove {
+pub enum InvalidMove {
     InvalidInput,
     InvalidRange,
     AlreadyUsed,
 }
 
-enum ValidMove {
+pub enum ValidMove {
     Continue,
     Draw,
     Win,
 }
 
 impl Field {
-    fn new() -> Field {
+    pub fn new() -> Field {
         Field {
             fields: [None, None, None, None, None, None, None, None, None],
         }
     }
 
-    fn new_move(mut self, input: &str, symbol: Symbols) -> Result<ValidMove, InvalidMove> {
+    pub fn new_move(&mut self, input: &str, symbol: Symbols) -> Result<ValidMove, InvalidMove> {
         // Parse coordinates
+        println!("-{}-", input);
         let [x, y] = match convert_input_to_coordinates(input) {
             Ok(k) => k,
             Err(e) => match e {
@@ -171,6 +174,7 @@ impl Field {
         }
 
         if check_for_draw(&self) {
+            println!("dddd");
             return Ok(ValidMove::Draw);
         }
 
@@ -179,5 +183,34 @@ impl Field {
         // are_same_some_values(row_iter);
 
         Ok(ValidMove::Continue)
+    }
+}
+
+fn neco(field: Option<Symbols>) -> &'static str {
+    match field {
+        Some(x) => match x {
+            Symbols::Circle => "o",
+            Symbols::Cross => "x",
+        },
+        None => " ",
+    }
+}
+
+impl std::fmt::Display for Field {
+    #[rustfmt::skip]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}{}\n{}{}{}\n{}{}{}\n",
+            neco(self.fields[0]),
+            neco(self.fields[1]),
+            neco(self.fields[2]),
+            neco(self.fields[3]),
+            neco(self.fields[4]),
+            neco(self.fields[5]),
+            neco(self.fields[6]),
+            neco(self.fields[7]),
+            neco(self.fields[8])
+        )
     }
 }

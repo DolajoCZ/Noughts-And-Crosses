@@ -1,152 +1,237 @@
-use crate::field;
+mod field;
+mod player;
 
-use crate::player::Player;
+// ---- Common ----
 
-enum GameStatus {
-    WaitingForPlayers,
-    Playing(u64, u64),
+pub enum Msg {
+    NewConnection(std::net::SocketAddr, tokio::net::TcpStream),
+    FromClient(field::Symbols, String),
+    Disconnect(field::Symbols),
 }
 
-pub struct Game {
-    players: std::collections::HashMap<u64, Player>,
-    status: GameStatus,
-}
+// ---- Manage incoming connections ----
 
-#[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
-enum Symbols {
-    Cross,
-    Circle,
-}
-
-pub struct GameField {
-    field: [Option<Symbols>; 9],
-}
-
-enum ConvertError {
-    InvalidInput,
-    InvalidRange,
-}
-
-enum InvalidMove {
-    InvalidInput,
-    InvalidRange,
-    AlreadyUsed,
-}
-
-enum ValidMove {
-    Continue,
-    Draw,
-    Win,
-}
-
-fn get_check_neco(coordinate: &[usize; 2], field: [[Option<u64>; 3]; 3]) -> bool {
-    // Check row
-    let mut row_iter = field.get(coordinate[0]).unwrap().iter();
-    // let row_first_item = row_iter.next().unwrap();
-
-    match row_iter.next().unwrap() {
-        Some(x) => {
-            if row_iter.all(|item| item == &Some(x.to_owned())) {
-                return true;
-            }
-        }
-        None => (),
+async fn connection_listener(
+    listener: tokio::net::TcpListener,
+    tx: tokio::sync::mpsc::Sender<Msg>,
+) {
+    loop {
+        let (stream, address) = listener.accept().await.unwrap();
+        tx.send(Msg::NewConnection(address, stream)).await;
     }
-
-    let mut a = field.iter().nth(coordinate[1]).unwrap().iter();
-
-    let b = a.next().unwrap();
-
-    false
 }
 
-async fn send_welcome_player(player: &Player) {
+// ---- Messages - info ----
+
+async fn send_welcome_player(player: &player::Player) {
     player
-        .send_msg_to_player(format!("Welcome player {}", player.get_id()))
+        .send_msg_to_player(format!("Welcome player {:?}", player.get_name()))
         .await;
 }
 
-async fn send_waiting_for_another_player(player: &Player) {
+async fn send_waiting_for_another_player(player: &player::Player) {
     player
         .send_msg_to_player("We are waiting fro another player".to_string())
         .await;
 }
 
-async fn send_both_players_ready(player: &Player) {
+async fn send_both_players_ready(player: &player::Player) {
     player
         .send_msg_to_player("Both players are ready".to_string())
         .await;
 }
 
-async fn send_players_leave_game(player: &Player) {
+async fn send_players_leave_game(player: &player::Player) {
     player
-        .send_msg_to_player("Another player leave game.\nCongratulation you win!".to_string())
+        .send_msg_to_player("Other player leave game.\nCongratulation you win!".to_string())
         .await;
 }
 
-async fn send_player_move(player: &Player) {
+async fn send_you_move(player: &player::Player) {
     player
-        .send_msg_to_player("You are on move".to_string())
+        .send_msg_to_player("Now you are on move.".to_string())
         .await;
 }
 
-async fn send_player_wait(player: &Player) {
+async fn send_other_player_is_on_move(player: &player::Player) {
     player
-        .send_msg_to_player("Your opponent is on move".to_string())
+        .send_msg_to_player("Now is other player on move.".to_string())
         .await;
 }
 
-impl Game {
-    pub fn new() -> Game {
-        Game {
-            players: std::collections::HashMap::new(),
-            status: GameStatus::WaitingForPlayers,
-        }
+async fn send_draw(player: &player::Player) {
+    player.send_msg_to_player("Nobody win.".to_string()).await;
+}
+
+async fn send_win(player: &player::Player) {
+    player
+        .send_msg_to_player("Congratulation, you win.".to_string())
+        .await;
+}
+
+async fn send_lose(player: &player::Player) {
+    player
+        .send_msg_to_player("Unfortunately you lose.".to_string())
+        .await;
+}
+
+async fn send_field(player: &player::Player, field: &field::Field) {
+    player
+        .send_msg_to_player(format!(
+            "-------------------\nCurrent game field\n{}",
+            field
+        ))
+        .await;
+}
+
+// ---- Messages - error ----
+
+async fn send_you_are_not_on_move(player: &player::Player) {
+    player
+        .send_msg_to_player("You are not on move. Please wait till other player move".to_string())
+        .await;
+}
+
+async fn send_invalid_input(player: &player::Player) {
+    player
+        .send_msg_to_player("You pass invalid input. Please repeat your input".to_string())
+        .await;
+}
+
+async fn send_already_taken(player: &player::Player) {
+    player
+        .send_msg_to_player("Required field is already taken. Please repeat your input".to_string())
+        .await;
+}
+
+// ---- Messages ----
+
+#[derive(PartialEq)]
+enum GameStage {
+    WaitingForPlayers,
+    WaitingForPlayer(field::Symbols),
+    PlayerOnMove,
+}
+
+async fn game(
+    tx_game: tokio::sync::mpsc::Sender<Msg>,
+    mut rx_game: tokio::sync::mpsc::Receiver<Msg>,
+) {
+    let mut field = field::Field::new();
+    let mut game_stage = GameStage::WaitingForPlayers;
+    // let mut players_iter = [Symbols::Circle, Symbols::Cross].iter().cycle();
+
+    let mut players: std::collections::HashMap<field::Symbols, player::Player> =
+        std::collections::HashMap::with_capacity(2);
+
+    let mut player_on_move = field::Symbols::Circle;
+    let mut player_waiting = field::Symbols::Cross;
+
+    loop {
+        match rx_game.recv().await.unwrap() {
+            // Connected new player
+            Msg::NewConnection(_, mut stream) => {
+                match game_stage {
+                    GameStage::WaitingForPlayers => {
+                        let player =
+                            player::Player::new(stream, field::Symbols::Circle, tx_game.clone());
+
+                        send_welcome_player(&player).await;
+                        send_waiting_for_another_player(&player).await;
+                        players.insert(player.get_name(), player);
+
+                        game_stage = GameStage::WaitingForPlayer(field::Symbols::Cross);
+                    }
+                    GameStage::WaitingForPlayer(x) => {
+                        let player = player::Player::new(stream, x, tx_game.clone());
+                        send_welcome_player(&player).await;
+                        players.insert(player.get_name(), player);
+
+                        for player in players.values() {
+                            send_both_players_ready(player).await;
+                            send_field(player, &field).await;
+                        }
+
+                        game_stage = GameStage::PlayerOnMove;
+
+                        send_you_move(players.get(&player_on_move).unwrap()).await;
+                        send_other_player_is_on_move(players.get(&player_waiting).unwrap()).await;
+                    }
+                    _ => {
+                        // TODO - close connection
+                        println!("Both players are connected")
+                    }
+                }
+            }
+            // Message from client
+            Msg::FromClient(id, msg) => match id == player_on_move {
+                true => {
+                    let player_ = players.get(&player_on_move).unwrap();
+
+                    match field.new_move(&msg, id) {
+                        Ok(res) => match res {
+                            field::ValidMove::Continue => {
+                                for player in players.values() {
+                                    send_field(player, &field).await;
+                                }
+
+                                (player_on_move, player_waiting) = (player_waiting, player_on_move);
+                                send_you_move(players.get(&player_on_move).unwrap()).await;
+                                send_other_player_is_on_move(players.get(&player_waiting).unwrap())
+                                    .await;
+                            }
+                            field::ValidMove::Draw => {
+                                for player in players.values() {
+                                    send_field(player, &field).await;
+                                    send_draw(player).await
+                                }
+                                field = field::Field::new();
+                            }
+                            field::ValidMove::Win => {
+                                for player in players.values() {
+                                    send_field(player, &field).await;
+                                }
+
+                                send_win(players.get(&player_on_move).unwrap()).await;
+                                send_lose(players.get(&player_waiting).unwrap()).await;
+                                (player_on_move, player_waiting) = (player_waiting, player_on_move);
+                                field = field::Field::new();
+                            }
+                        },
+                        Err(err) => match err {
+                            field::InvalidMove::AlreadyUsed => send_already_taken(player_).await,
+                            _ => send_invalid_input(player_).await,
+                        },
+                    };
+                }
+                false => send_you_are_not_on_move(players.get(&id).unwrap()).await,
+            },
+
+            // Client disconnected
+            Msg::Disconnect(id) => {
+                players.remove(&id);
+
+                if players.len() == 1 {
+                    send_players_leave_game(players.values().next().unwrap()).await;
+                    game_stage = GameStage::WaitingForPlayer(id);
+                } else {
+                    game_stage = GameStage::WaitingForPlayers;
+                }
+            }
+        };
     }
+}
 
-    pub async fn add_player(&mut self, player: Player) -> bool {
-        // All players connected
-        if self.players.len() >= 2 {
-            return false;
+pub async fn run(server_address: &str) {
+    let listener = match tokio::net::TcpListener::bind(server_address).await {
+        Ok(x) => x,
+        Err(err) => {
+            println!("Fail to create new TCP listener: {:?}", err);
+            std::process::exit(2);
         }
+    };
 
-        send_welcome_player(&player).await;
+    let (tx, rx) = tokio::sync::mpsc::channel(10);
 
-        // First player connected
-        if self.players.len() == 0 {
-            send_waiting_for_another_player(&player).await;
-
-            self.players.insert(player.get_id(), player);
-            return true;
-        }
-
-        self.players.insert(player.get_id(), player);
-
-        // Both players connected
-        for player in self.players.values() {
-            send_both_players_ready(player).await;
-        }
-
-        let mut a = self.players.keys();
-
-        self.status =
-            GameStatus::Playing(a.next().unwrap().to_owned(), a.next().unwrap().to_owned());
-
-        if let GameStatus::Playing(x, y) = self.status {
-            send_player_move(&self.players[&x]).await;
-            send_player_wait(&self.players[&y]).await;
-        }
-
-        return true;
-    }
-
-    pub async fn remove_player(&mut self, player_id: u64) {
-        self.players.remove(&player_id);
-
-        println!("ccoc");
-
-        if self.players.len() == 1 {
-            send_players_leave_game(self.players.values().next().unwrap()).await;
-        }
-    }
+    tokio::join!(connection_listener(listener, tx.clone()), game(tx, rx));
 }
