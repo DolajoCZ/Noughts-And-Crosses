@@ -4,6 +4,8 @@ enum ConvertError {
     InvalidRange,
 }
 
+type SingleField = Option<super::PlayerName>;
+
 fn convert_input_to_coordinate(input: &str) -> Result<usize, ConvertError> {
     let value = match input.parse::<usize>() {
         Ok(x) => x,
@@ -27,29 +29,29 @@ fn convert_input_to_coordinates(input: &str) -> Result<[usize; 2], ConvertError>
 }
 
 // ---- Get iteration over "lines" ----
-fn get_iter_row(field: &Field, row_index: usize) -> std::slice::Iter<'_, Option<Symbols>> {
+fn get_iter_row(field: &Field, row_index: usize) -> std::slice::Iter<'_, SingleField> {
     field.fields[3 * row_index..3 * (row_index + 1)].iter()
 }
 
 fn get_iter_col_(
     field: &Field,
     col_index: usize,
-) -> std::iter::StepBy<std::iter::Skip<std::slice::Iter<'_, Option<Symbols>>>> {
+) -> std::iter::StepBy<std::iter::Skip<std::slice::Iter<'_, SingleField>>> {
     field.fields.iter().skip(col_index).step_by(3)
 }
 
-fn get_iter_diag_neg(field: &Field) -> std::iter::StepBy<std::slice::Iter<'_, Option<Symbols>>> {
+fn get_iter_diag_neg(field: &Field) -> std::iter::StepBy<std::slice::Iter<'_, SingleField>> {
     field.fields.iter().step_by(4)
 }
 
-fn get_iter_diag_pos(field: &Field) -> std::iter::StepBy<std::slice::Iter<'_, Option<Symbols>>> {
+fn get_iter_diag_pos(field: &Field) -> std::iter::StepBy<std::slice::Iter<'_, SingleField>> {
     field.fields[2..7].iter().step_by(2)
 }
 
 // ---- Check field for win ----
 fn are_same_some_values<'a, T>(mut data: T) -> bool
 where
-    T: Iterator<Item = &'a Option<Symbols>>,
+    T: Iterator<Item = &'a SingleField>,
 {
     match data.next() {
         None => false,
@@ -88,13 +90,13 @@ fn check_for_win(field: &Field, position: usize) -> bool {
 // ---- Check field for draw ----
 fn is_line_capable<'a, T>(data: T) -> bool
 where
-    T: Iterator<Item = &'a Option<Symbols>>,
+    T: Iterator<Item = &'a SingleField>,
 {
     let score = data.fold(0_u16, |sum, item| {
         sum + match item {
             Some(x) => match x {
-                Symbols::Circle => 1,
-                Symbols::Cross => 10,
+                super::PlayerName::Circle => 1,
+                super::PlayerName::Cross => 10,
             },
             None => 100,
         }
@@ -115,14 +117,9 @@ fn check_for_draw(field: &Field) -> bool {
 }
 
 // ---- Field struct ----
-#[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
-pub enum Symbols {
-    Cross,
-    Circle,
-}
 
 pub struct Field {
-    fields: [Option<Symbols>; 9],
+    fields: [SingleField; 9],
 }
 
 pub enum InvalidMove {
@@ -144,7 +141,11 @@ impl Field {
         }
     }
 
-    pub fn new_move(&mut self, input: &str, symbol: Symbols) -> Result<ValidMove, InvalidMove> {
+    pub fn new_move(
+        &mut self,
+        input: &str,
+        player_name: super::PlayerName,
+    ) -> Result<ValidMove, InvalidMove> {
         // Parse coordinates
         let [x, y] = match convert_input_to_coordinates(input) {
             Ok(k) => k,
@@ -161,7 +162,7 @@ impl Field {
 
         // Save data to field
         let position = 3 * x + y;
-        self.fields[position] = Some(symbol);
+        self.fields[position] = Some(player_name);
 
         if check_for_win(&self, position) {
             return Ok(ValidMove::Win);
@@ -175,11 +176,11 @@ impl Field {
     }
 }
 
-fn neco(field: Option<Symbols>) -> &'static str {
+fn neco(field: SingleField) -> &'static str {
     match field {
         Some(x) => match x {
-            Symbols::Circle => "o",
-            Symbols::Cross => "x",
+            super::PlayerName::Circle => "o",
+            super::PlayerName::Cross => "x",
         },
         None => " ",
     }

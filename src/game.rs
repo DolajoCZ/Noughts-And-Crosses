@@ -4,10 +4,16 @@ mod player;
 
 // ---- Common ----
 
+#[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
+pub enum PlayerName {
+    Circle,
+    Cross,
+}
+
 pub enum Msg {
     NewConnection(std::net::SocketAddr, tokio::net::TcpStream),
-    FromClient(field::Symbols, String),
-    Disconnect(field::Symbols),
+    FromClient(PlayerName, String),
+    Disconnect(PlayerName),
 }
 
 // ---- Manage incoming connections ----
@@ -27,7 +33,7 @@ async fn connection_listener(
 #[derive(PartialEq)]
 enum GameStage {
     WaitingForPlayers,
-    WaitingForPlayer(field::Symbols),
+    WaitingForPlayer(PlayerName),
     PlayerOnMove,
 }
 
@@ -38,11 +44,11 @@ async fn game(
     let mut field = field::Field::new();
     let mut game_stage = GameStage::WaitingForPlayers;
 
-    let mut players: std::collections::HashMap<field::Symbols, player::Player> =
+    let mut players: std::collections::HashMap<PlayerName, player::Player> =
         std::collections::HashMap::with_capacity(2);
 
-    let mut player_on_move = field::Symbols::Circle;
-    let mut player_waiting = field::Symbols::Cross;
+    let mut player_on_move = PlayerName::Circle;
+    let mut player_waiting = PlayerName::Cross;
 
     loop {
         match rx_game.recv().await.unwrap() {
@@ -51,16 +57,16 @@ async fn game(
                 match game_stage {
                     GameStage::WaitingForPlayers => {
                         let player =
-                            player::Player::new(stream, field::Symbols::Circle, tx_game.clone());
+                            player::Player::new(stream, PlayerName::Circle, tx_game.clone());
 
                         msgs::send_welcome_player(&player).await;
                         msgs::send_waiting_for_another_player(&player).await;
                         players.insert(player.get_name(), player);
 
-                        game_stage = GameStage::WaitingForPlayer(field::Symbols::Cross);
+                        game_stage = GameStage::WaitingForPlayer(PlayerName::Cross);
                     }
-                    GameStage::WaitingForPlayer(x) => {
-                        let player = player::Player::new(stream, x, tx_game.clone());
+                    GameStage::WaitingForPlayer(player_name) => {
+                        let player = player::Player::new(stream, player_name, tx_game.clone());
                         msgs::send_welcome_player(&player).await;
                         players.insert(player.get_name(), player);
 
@@ -82,11 +88,11 @@ async fn game(
                 }
             }
             // Message from client
-            Msg::FromClient(id, msg) => match id == player_on_move {
+            Msg::FromClient(player_name, msg) => match player_name == player_on_move {
                 true => {
                     let player_ = players.get(&player_on_move).unwrap();
 
-                    match field.new_move(&msg, id) {
+                    match field.new_move(&msg, player_name) {
                         Ok(res) => match res {
                             field::ValidMove::Continue => {
                                 for player in players.values() {
@@ -126,7 +132,7 @@ async fn game(
                         },
                     };
                 }
-                false => msgs::send_you_are_not_on_move(players.get(&id).unwrap()).await,
+                false => msgs::send_you_are_not_on_move(players.get(&player_name).unwrap()).await,
             },
 
             // Client disconnected
