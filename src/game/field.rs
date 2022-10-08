@@ -191,15 +191,15 @@ impl std::fmt::Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            " │1│2│3│ \n\
-             ─┼─┼─┼─┼─\n\
-             1│{}│{}│{}│1\n\
-             ─┼─┼─┼─┼─\n\
-             2│{}│{}│{}│2\n\
-             ─┼─┼─┼─┼─\n\
-             3│{}│{}│{}│3\n\
-             ─┼─┼─┼─┼─\n \
-              │1│2│3│ \n",
+            " |1|2|3| \r\n\
+             -|-|-|-|-\r\n\
+             1|{}|{}|{}|1\r\n\
+             -|-|-|-|-\r\n\
+             2|{}|{}|{}|2\r\n\
+             -|-|-|-|-\r\n\
+             3|{}|{}|{}|3\r\n\
+             -|-|-|-|-\r\n \
+              |1|2|3| \r\n",
             field_to_str(self.fields[0]),
             field_to_str(self.fields[1]),
             field_to_str(self.fields[2]),

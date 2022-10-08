@@ -175,7 +175,7 @@ async fn game(
                     let player_ = players.values().next().unwrap();
 
                     if player_.get_name() == player_on_move {
-                        player_.send_msg_to_player("\n".to_owned()).await
+                        player_.send_msg_to_player("\r\n".to_owned()).await
                     }
 
                     msgs::send_players_leave_game(player_).await;

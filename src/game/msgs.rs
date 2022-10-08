@@ -5,14 +5,14 @@ fn add_player_name_prefix(msg: &str, player: &super::player::Player) -> String {
 // ---- Messages - info ----
 pub async fn send_welcome_player(player: &super::player::Player) {
     player
-        .send_msg_to_player(add_player_name_prefix("Welcome player\n", player))
+        .send_msg_to_player(add_player_name_prefix("Welcome player\r\n", player))
         .await;
 }
 
 pub async fn send_waiting_for_another_player(player: &super::player::Player) {
     player
         .send_msg_to_player(add_player_name_prefix(
-            "We are waiting for another player\n",
+            "We are waiting for another player\r\n",
             player,
         ))
         .await;
@@ -20,14 +20,14 @@ pub async fn send_waiting_for_another_player(player: &super::player::Player) {
 
 pub async fn send_both_players_ready(player: &super::player::Player) {
     player
-        .send_msg_to_player(add_player_name_prefix("Both players are ready\n", player))
+        .send_msg_to_player(add_player_name_prefix("Both players are ready\r\n", player))
         .await;
 }
 
 pub async fn send_players_leave_game(player: &super::player::Player) {
     player
         .send_msg_to_player(add_player_name_prefix(
-            "Other player leave game. Congratulation you win!\n",
+            "Other player leave game. Congratulation you win!\r\n",
             player,
         ))
         .await;
@@ -42,7 +42,7 @@ pub async fn send_you_move(player: &super::player::Player) {
 pub async fn send_other_player_is_on_move(player: &super::player::Player) {
     player
         .send_msg_to_player(add_player_name_prefix(
-            "Now is other player on move\n",
+            "Now is other player on move\r\n",
             player,
         ))
         .await;
@@ -50,26 +50,32 @@ pub async fn send_other_player_is_on_move(player: &super::player::Player) {
 
 pub async fn send_draw(player: &super::player::Player) {
     player
-        .send_msg_to_player(add_player_name_prefix("Nobody win\n", player))
+        .send_msg_to_player(add_player_name_prefix("Nobody win\r\n", player))
         .await;
 }
 
 pub async fn send_win(player: &super::player::Player) {
     player
-        .send_msg_to_player(add_player_name_prefix("Congratulation, you win.\n", player))
+        .send_msg_to_player(add_player_name_prefix(
+            "Congratulation, you win.\r\n",
+            player,
+        ))
         .await;
 }
 
 pub async fn send_lose(player: &super::player::Player) {
     player
-        .send_msg_to_player(add_player_name_prefix("Unfortunately you lose.\n", player))
+        .send_msg_to_player(add_player_name_prefix(
+            "Unfortunately you lose.\r\n",
+            player,
+        ))
         .await;
 }
 
 pub async fn send_field(player: &super::player::Player, field: &super::field::Field) {
     player
         .send_msg_to_player(format!(
-            "------------------\nCurrent game field\n\n{}\n",
+            "------------------\r\nCurrent game field\r\n\r\n{}\r\n",
             field
         ))
         .await;
@@ -79,7 +85,7 @@ pub async fn send_field(player: &super::player::Player, field: &super::field::Fi
 pub async fn send_you_are_not_on_move(player: &super::player::Player) {
     player
         .send_msg_to_player(add_player_name_prefix(
-            "You are not on move. Please wait till other player move\n",
+            "You are not on move. Please wait till other player move\r\n",
             player,
         ))
         .await;
