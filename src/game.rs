@@ -189,7 +189,7 @@ async fn game(
     }
 }
 
-pub async fn run(server_address: &str) {
+pub async fn run<T>(server_address: T) where T: tokio::net::ToSocketAddrs {
     let listener = match tokio::net::TcpListener::bind(server_address).await {
         Ok(x) => x,
         Err(err) => {
