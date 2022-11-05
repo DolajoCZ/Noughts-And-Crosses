@@ -4,7 +4,38 @@ enum ConvertError {
     InvalidRange,
 }
 
-type SingleField = Option<super::PlayerName>;
+struct SingleField {
+    field: Option<super::PlayerName>,
+}
+
+impl SingleField {
+    fn new() -> Self {
+        SingleField { field: None }
+    }
+
+    fn used_by_user(&self, player: &super::PlayerName) -> bool {
+        match &self.field {
+            Some(x) => x == player,
+            None => false,
+        }
+    }
+}
+
+impl std::fmt::Display for SingleField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self.field {
+                Some(x) => match x {
+                    super::PlayerName::Circle => "o",
+                    super::PlayerName::Cross => "x",
+                },
+                None => " ",
+            }
+        )
+    }
+}
 
 fn convert_input_to_coordinate(input: &str) -> Result<usize, ConvertError> {
     let value = match input.parse::<usize>() {
@@ -55,8 +86,8 @@ where
 {
     match data.next() {
         None => false,
-        Some(x) => match x {
-            Some(y) => data.all(|x| x == &Some(*y)),
+        Some(x) => match x.field {
+            Some(y) => data.all(|x| x.used_by_user(&y)),
             None => false,
         },
     }
@@ -93,7 +124,7 @@ where
     T: Iterator<Item = &'a SingleField>,
 {
     let score = data.fold(0_u16, |sum, item| {
-        sum + match item {
+        sum + match item.field {
             Some(x) => match x {
                 super::PlayerName::Circle => 1,
                 super::PlayerName::Cross => 10,
@@ -137,7 +168,17 @@ pub enum ValidMove {
 impl Field {
     pub fn new() -> Field {
         Field {
-            fields: [None, None, None, None, None, None, None, None, None],
+            fields: [
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+                SingleField::new(),
+            ],
         }
     }
 
@@ -156,13 +197,15 @@ impl Field {
         };
 
         // Already taken
-        if self.fields[3 * x + y].is_some() {
+        if self.fields[3 * x + y].field.is_some() {
             return Err(InvalidMove::AlreadyUsed);
         };
 
         // Save data to field
         let position = 3 * x + y;
-        self.fields[position] = Some(player_name);
+        self.fields[position] = SingleField {
+            field: Some(player_name),
+        };
 
         if check_for_win(&self, position) {
             return Ok(ValidMove::Win);
@@ -173,16 +216,6 @@ impl Field {
         }
 
         Ok(ValidMove::Continue)
-    }
-}
-
-fn field_to_str(field: SingleField) -> &'static str {
-    match field {
-        Some(x) => match x {
-            super::PlayerName::Circle => "o",
-            super::PlayerName::Cross => "x",
-        },
-        None => " ",
     }
 }
 
@@ -200,15 +233,15 @@ impl std::fmt::Display for Field {
              3|{}|{}|{}|3\r\n\
              -|-|-|-|-\r\n \
               |1|2|3| \r\n",
-            field_to_str(self.fields[0]),
-            field_to_str(self.fields[1]),
-            field_to_str(self.fields[2]),
-            field_to_str(self.fields[3]),
-            field_to_str(self.fields[4]),
-            field_to_str(self.fields[5]),
-            field_to_str(self.fields[6]),
-            field_to_str(self.fields[7]),
-            field_to_str(self.fields[8])
+            self.fields[0],
+            self.fields[1],
+            self.fields[2],
+            self.fields[3],
+            self.fields[4],
+            self.fields[5],
+            self.fields[6],
+            self.fields[7],
+            self.fields[8]
         )
     }
 }
