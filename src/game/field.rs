@@ -153,18 +153,6 @@ pub struct Field {
     fields: [SingleField; 9],
 }
 
-pub enum InvalidMove {
-    InvalidInput,
-    InvalidRange,
-    AlreadyUsed,
-}
-
-pub enum ValidMove {
-    Continue,
-    Draw,
-    Win,
-}
-
 impl Field {
     pub fn new() -> Field {
         Field {
@@ -181,24 +169,26 @@ impl Field {
             ],
         }
     }
+}
 
-    pub fn new_move(
+impl super::GameField for Field {
+    fn new_move(
         &mut self,
         input: &str,
         player_name: super::PlayerName,
-    ) -> Result<ValidMove, InvalidMove> {
+    ) -> Result<super::ValidMove, super::InvalidMove> {
         // Parse coordinates
         let [x, y] = match convert_input_to_coordinates(input) {
             Ok(k) => k,
             Err(e) => match e {
-                ConvertError::InvalidInput => return Err(InvalidMove::InvalidInput),
-                ConvertError::InvalidRange => return Err(InvalidMove::InvalidRange),
+                ConvertError::InvalidInput => return Err(super::InvalidMove::InvalidInput),
+                ConvertError::InvalidRange => return Err(super::InvalidMove::InvalidRange),
             },
         };
 
         // Already taken
         if self.fields[3 * x + y].field.is_some() {
-            return Err(InvalidMove::AlreadyUsed);
+            return Err(super::InvalidMove::AlreadyUsed);
         };
 
         // Save data to field
@@ -208,14 +198,18 @@ impl Field {
         };
 
         if check_for_win(&self, position) {
-            return Ok(ValidMove::Win);
+            return Ok(super::ValidMove::Win);
         }
 
         if check_for_draw(&self) {
-            return Ok(ValidMove::Draw);
+            return Ok(super::ValidMove::Draw);
         }
 
-        Ok(ValidMove::Continue)
+        Ok(super::ValidMove::Continue)
+    }
+
+    fn reset(&mut self) {
+        self.fields.iter_mut().for_each(|x| *x = SingleField::new());
     }
 }
 

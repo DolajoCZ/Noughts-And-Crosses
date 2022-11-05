@@ -17,19 +17,44 @@ impl std::fmt::Display for PlayerName {
             Self::Circle => "o",
             Self::Cross => "x"
         };
-        
+
         write!(f, "{}", name)
     }
 }
-
-
-
-
 
 pub enum Msg {
     NewConnection(std::net::SocketAddr, tokio::net::TcpStream),
     FromClient(PlayerName, String),
     Disconnect(PlayerName),
+}
+
+// ---- Trait for field ----
+
+pub enum InvalidMove {
+    InvalidInput,
+    InvalidRange,
+    AlreadyUsed,
+}
+
+pub enum ValidMove {
+    Continue,
+    Draw,
+    Win,
+}
+
+trait GameField {
+    fn reset(&mut self);
+
+    fn new_move(&mut self, input: &str, player_name: PlayerName) -> Result<ValidMove, InvalidMove>;
+}
+
+// ---- Trait for player ----
+#[async_trait::async_trait]
+pub trait Player {
+    type T;
+
+    fn get_name(&self) -> Self::T;
+    async fn send_msg_to_player(&self, msg: String);
 }
 
 // ---- Manage incoming connections ----
@@ -46,11 +71,13 @@ async fn connection_listener(
 
 // ---- Messages ----
 
-async fn send_new_game_round(
+async fn send_new_game_round<T>(
     player_on_move: &player::Player,
     player_waiting: &player::Player,
-    field: &field::Field,
-) {
+    field: &T,
+) where
+    T: std::fmt::Display,
+{
     msgs::send_field(player_on_move, field).await;
     msgs::send_field(player_waiting, field).await;
 
@@ -65,11 +92,14 @@ enum GameStage {
     PlayerOnMove,
 }
 
-async fn game(
+async fn game<T>(
+    mut field: T,
     tx_game: tokio::sync::mpsc::Sender<Msg>,
     mut rx_game: tokio::sync::mpsc::Receiver<Msg>,
-) {
-    let mut field = field::Field::new();
+) where
+    T: GameField + std::fmt::Display,
+{
+    // let mut field = field::Field::new();
     let mut game_stage = GameStage::WaitingForPlayers;
 
     let mut players: std::collections::HashMap<PlayerName, player::Player> =
@@ -123,15 +153,15 @@ async fn game(
                     match field.new_move(&msg, player_name) {
                         Ok(res) => {
                             match res {
-                                field::ValidMove::Continue => (),
-                                field::ValidMove::Draw => {
+                                ValidMove::Continue => (),
+                                ValidMove::Draw => {
                                     for player in players.values() {
                                         msgs::send_field(player, &field).await;
                                         msgs::send_draw(player).await
                                     }
-                                    field = field::Field::new();
+                                    field.reset();
                                 }
-                                field::ValidMove::Win => {
+                                ValidMove::Win => {
                                     for player in players.values() {
                                         msgs::send_field(player, &field).await;
                                     }
@@ -139,7 +169,7 @@ async fn game(
                                     msgs::send_win(players.get(&player_on_move).unwrap()).await;
                                     msgs::send_lose(players.get(&player_waiting).unwrap()).await;
 
-                                    field = field::Field::new();
+                                    field.reset();
                                 }
                             }
 
@@ -153,9 +183,7 @@ async fn game(
                             .await;
                         }
                         Err(err) => match err {
-                            field::InvalidMove::AlreadyUsed => {
-                                msgs::send_already_taken(player_).await
-                            }
+                            InvalidMove::AlreadyUsed => msgs::send_already_taken(player_).await,
                             _ => msgs::send_invalid_input(player_).await,
                         },
                     };
@@ -168,7 +196,7 @@ async fn game(
                 players.remove(&id);
 
                 if game_stage == GameStage::PlayerOnMove {
-                    field = field::Field::new();
+                    field.reset();
                 }
 
                 if players.len() == 1 {
@@ -189,7 +217,10 @@ async fn game(
     }
 }
 
-pub async fn run<T>(server_address: T) where T: tokio::net::ToSocketAddrs {
+pub async fn run<T>(server_address: T)
+where
+    T: tokio::net::ToSocketAddrs,
+{
     let listener = match tokio::net::TcpListener::bind(server_address).await {
         Ok(x) => x,
         Err(err) => {
@@ -199,6 +230,10 @@ pub async fn run<T>(server_address: T) where T: tokio::net::ToSocketAddrs {
     };
 
     let (tx, rx) = tokio::sync::mpsc::channel(10);
+    let field = field::Field::new();
 
-    tokio::join!(connection_listener(listener, tx.clone()), game(tx, rx));
+    tokio::join!(
+        connection_listener(listener, tx.clone()),
+        game(field, tx, rx)
+    );
 }

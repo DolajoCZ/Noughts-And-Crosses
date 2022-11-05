@@ -50,12 +50,17 @@ impl Player {
 
         Player { name, tx_client }
     }
+}
 
-    pub async fn send_msg_to_player(&self, msg: String) {
-        self.tx_client.send(msg).await;
+#[async_trait::async_trait]
+impl super::Player for Player {
+    type T = super::PlayerName;
+
+    fn get_name(&self) -> Self::T {
+        self.name
     }
 
-    pub fn get_name(&self) -> super::PlayerName {
-        return self.name;
+    async fn send_msg_to_player(&self, msg: String) {
+        self.tx_client.send(msg).await;
     }
 }

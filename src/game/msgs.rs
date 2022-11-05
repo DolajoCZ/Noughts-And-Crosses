@@ -1,15 +1,27 @@
-fn add_player_name_prefix(msg: &str, player: &super::player::Player) -> String {
+fn add_player_name_prefix<T>(msg: &str, player: &T) -> String
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     format!("[{}] {}", player.get_name(), msg)
 }
 
 // ---- Messages - info ----
-pub async fn send_welcome_player(player: &super::player::Player) {
+pub async fn send_welcome_player<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix("Welcome player\r\n", player))
         .await;
 }
 
-pub async fn send_waiting_for_another_player(player: &super::player::Player) {
+pub async fn send_waiting_for_another_player<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "We are waiting for another player\r\n",
@@ -18,13 +30,21 @@ pub async fn send_waiting_for_another_player(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_both_players_ready(player: &super::player::Player) {
+pub async fn send_both_players_ready<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix("Both players are ready\r\n", player))
         .await;
 }
 
-pub async fn send_players_leave_game(player: &super::player::Player) {
+pub async fn send_players_leave_game<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "Other player leave game. Congratulation you win!\r\n",
@@ -33,13 +53,21 @@ pub async fn send_players_leave_game(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_you_move(player: &super::player::Player) {
+pub async fn send_you_move<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix("Now you are on move: ", player))
         .await;
 }
 
-pub async fn send_other_player_is_on_move(player: &super::player::Player) {
+pub async fn send_other_player_is_on_move<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "Now is other player on move\r\n",
@@ -48,13 +76,21 @@ pub async fn send_other_player_is_on_move(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_draw(player: &super::player::Player) {
+pub async fn send_draw<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix("Nobody win\r\n", player))
         .await;
 }
 
-pub async fn send_win(player: &super::player::Player) {
+pub async fn send_win<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "Congratulation, you win.\r\n",
@@ -63,7 +99,11 @@ pub async fn send_win(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_lose(player: &super::player::Player) {
+pub async fn send_lose<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "Unfortunately you lose.\r\n",
@@ -72,7 +112,12 @@ pub async fn send_lose(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_field(player: &super::player::Player, field: &super::field::Field) {
+pub async fn send_field<T, R>(player: &T, field: &R)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+    R: std::fmt::Display,
+{
     player
         .send_msg_to_player(format!(
             "------------------\r\nCurrent game field\r\n\r\n{}\r\n",
@@ -82,7 +127,11 @@ pub async fn send_field(player: &super::player::Player, field: &super::field::Fi
 }
 
 // ---- Messages - error ----
-pub async fn send_you_are_not_on_move(player: &super::player::Player) {
+pub async fn send_you_are_not_on_move<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "You are not on move. Please wait till other player move\r\n",
@@ -91,7 +140,11 @@ pub async fn send_you_are_not_on_move(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_invalid_input(player: &super::player::Player) {
+pub async fn send_invalid_input<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(add_player_name_prefix(
             "You pass invalid input. Please repeat your input: ",
@@ -100,7 +153,11 @@ pub async fn send_invalid_input(player: &super::player::Player) {
         .await;
 }
 
-pub async fn send_already_taken(player: &super::player::Player) {
+pub async fn send_already_taken<T>(player: &T)
+where
+    T: super::Player,
+    <T as super::Player>::T: std::fmt::Display,
+{
     player
         .send_msg_to_player(
             add_player_name_prefix(

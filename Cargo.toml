@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 tokio = {version="1.20", features=["full"]}
 local-ip-address = {version = "0.4.8"}
+async-trait = {version = "0.1.57"}
