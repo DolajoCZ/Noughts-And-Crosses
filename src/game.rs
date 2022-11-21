@@ -1,8 +1,16 @@
-mod field;
-mod msgs;
-mod player;
+pub mod playboard;
+pub mod player_manager;
+
+use player_manager::PlayerTrait;
 
 // ---- Common ----
+
+#[derive(PartialEq)]
+enum GameStage {
+    WaitingForPlayers,
+    WaitingForPlayer(PlayerName),
+    PlayerOnMove,
+}
 
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
 pub enum PlayerName {
@@ -22,122 +30,53 @@ impl std::fmt::Display for PlayerName {
     }
 }
 
-pub enum Msg {
-    NewConnection(std::net::SocketAddr, tokio::net::TcpStream),
-    FromClient(PlayerName, String),
-    Disconnect(PlayerName),
-}
-
-// ---- Trait for field ----
-
-pub enum InvalidMove {
-    InvalidInput,
-    InvalidRange,
-    AlreadyUsed,
-}
-
-pub enum ValidMove {
-    Continue,
-    Draw,
-    Win,
-}
-
-trait GameField {
-    fn reset(&mut self);
-
-    fn new_move(&mut self, input: &str, player_name: PlayerName) -> Result<ValidMove, InvalidMove>;
-}
-
-// ---- Trait for player ----
-#[async_trait::async_trait]
-pub trait Player {
-    type T;
-
-    fn get_name(&self) -> Self::T;
-    async fn send_msg_to_player(&self, msg: String);
-}
-
-// ---- Manage incoming connections ----
-
-async fn connection_listener(
-    listener: tokio::net::TcpListener,
-    tx: tokio::sync::mpsc::Sender<Msg>,
-) {
-    loop {
-        let (stream, address) = listener.accept().await.unwrap();
-        tx.send(Msg::NewConnection(address, stream)).await;
-    }
-}
-
-// ---- Messages ----
-
-async fn send_new_game_round<T>(
-    player_on_move: &player::Player,
-    player_waiting: &player::Player,
-    field: &T,
-) where
-    T: std::fmt::Display,
-{
-    msgs::send_field(player_on_move, field).await;
-    msgs::send_field(player_waiting, field).await;
-
-    msgs::send_you_move(player_on_move).await;
-    msgs::send_other_player_is_on_move(player_waiting).await;
-}
-
-#[derive(PartialEq)]
-enum GameStage {
-    WaitingForPlayers,
-    WaitingForPlayer(PlayerName),
-    PlayerOnMove,
-}
-
-async fn game<T>(
-    mut field: T,
-    tx_game: tokio::sync::mpsc::Sender<Msg>,
-    mut rx_game: tokio::sync::mpsc::Receiver<Msg>,
-) where
-    T: GameField + std::fmt::Display,
+pub async fn run_game<T, R>(mut player_manager: T, mut playboard: R)
+where
+    T: player_manager::PlayerMangerTrait,
+    R: playboard::Playboard + std::fmt::Display,
 {
     // let mut field = field::Field::new();
     let mut game_stage = GameStage::WaitingForPlayers;
 
-    let mut players: std::collections::HashMap<PlayerName, player::Player> =
+    let mut players: std::collections::HashMap<PlayerName, T::Player> =
         std::collections::HashMap::with_capacity(2);
 
     let mut player_on_move = PlayerName::Circle;
     let mut player_waiting = PlayerName::Cross;
 
     loop {
-        match rx_game.recv().await.unwrap() {
-            // Connected new player
-            Msg::NewConnection(_, stream) => {
+        match player_manager.receive_new_message().await {
+            player_manager::Msg::NewConnection(new_player_data) => {
                 match game_stage {
                     GameStage::WaitingForPlayers => {
                         let player =
-                            player::Player::new(stream, PlayerName::Circle, tx_game.clone());
+                            player_manager.create_new_player(PlayerName::Circle, new_player_data);
+                        // player::Player::new(stream, PlayerName::Circle, tx_game.clone());
 
-                        msgs::send_welcome_player(&player).await;
-                        msgs::send_waiting_for_another_player(&player).await;
+                        player_manager::msgs::send_welcome_player(&player).await;
+                        player_manager::msgs::send_waiting_for_another_player(&player).await;
                         players.insert(player.get_name(), player);
 
                         game_stage = GameStage::WaitingForPlayer(PlayerName::Cross);
                     }
                     GameStage::WaitingForPlayer(player_name) => {
-                        let player = player::Player::new(stream, player_name, tx_game.clone());
-                        msgs::send_welcome_player(&player).await;
+                        let player = player_manager.create_new_player(player_name, new_player_data);
+                        player_manager::msgs::send_welcome_player(&player).await;
                         players.insert(player.get_name(), player);
 
                         for player in players.values() {
-                            msgs::send_both_players_ready(player).await;
-                            msgs::send_field(player, &field).await;
+                            player_manager::msgs::send_both_players_ready(player).await;
+                            player_manager::msgs::send_field(player, &playboard).await;
                         }
 
                         game_stage = GameStage::PlayerOnMove;
 
-                        msgs::send_you_move(players.get(&player_on_move).unwrap()).await;
-                        msgs::send_other_player_is_on_move(players.get(&player_waiting).unwrap())
+                        player_manager::msgs::send_you_move(players.get(&player_on_move).unwrap())
                             .await;
+                        player_manager::msgs::send_other_player_is_on_move(
+                            players.get(&player_waiting).unwrap(),
+                        )
+                        .await;
                     }
                     _ => {
                         // TODO - close connection
@@ -145,58 +84,74 @@ async fn game<T>(
                     }
                 }
             }
-            // Message from client
-            Msg::FromClient(player_name, msg) => match player_name == player_on_move {
-                true => {
-                    let player_ = players.get(&player_on_move).unwrap();
+            player_manager::Msg::FromClient(player_name, msg) => {
+                match player_name == player_on_move {
+                    true => {
+                        let player_ = players.get(&player_on_move).unwrap();
 
-                    match field.new_move(&msg, player_name) {
-                        Ok(res) => {
-                            match res {
-                                ValidMove::Continue => (),
-                                ValidMove::Draw => {
-                                    for player in players.values() {
-                                        msgs::send_field(player, &field).await;
-                                        msgs::send_draw(player).await
+                        match playboard.new_move(&msg, player_name) {
+                            Ok(res) => {
+                                match res {
+                                    playboard::ValidMove::Continue => (),
+                                    playboard::ValidMove::Draw => {
+                                        for player in players.values() {
+                                            player_manager::msgs::send_field(player, &playboard)
+                                                .await;
+                                            player_manager::msgs::send_draw(player).await
+                                        }
+                                        playboard.reset();
                                     }
-                                    field.reset();
-                                }
-                                ValidMove::Win => {
-                                    for player in players.values() {
-                                        msgs::send_field(player, &field).await;
+                                    playboard::ValidMove::Win => {
+                                        for player in players.values() {
+                                            player_manager::msgs::send_field(player, &playboard)
+                                                .await;
+                                        }
+
+                                        player_manager::msgs::send_win(
+                                            players.get(&player_on_move).unwrap(),
+                                        )
+                                        .await;
+                                        player_manager::msgs::send_lose(
+                                            players.get(&player_waiting).unwrap(),
+                                        )
+                                        .await;
+
+                                        playboard.reset();
                                     }
-
-                                    msgs::send_win(players.get(&player_on_move).unwrap()).await;
-                                    msgs::send_lose(players.get(&player_waiting).unwrap()).await;
-
-                                    field.reset();
                                 }
+
+                                (player_on_move, player_waiting) = (player_waiting, player_on_move);
+
+                                player_manager::msgs::send_new_game_round(
+                                    players.get(&player_on_move).unwrap(),
+                                    players.get(&player_waiting).unwrap(),
+                                    &playboard,
+                                )
+                                .await;
                             }
-
-                            (player_on_move, player_waiting) = (player_waiting, player_on_move);
-
-                            send_new_game_round(
-                                players.get(&player_on_move).unwrap(),
-                                players.get(&player_waiting).unwrap(),
-                                &field,
-                            )
-                            .await;
-                        }
-                        Err(err) => match err {
-                            InvalidMove::AlreadyUsed => msgs::send_already_taken(player_).await,
-                            _ => msgs::send_invalid_input(player_).await,
-                        },
-                    };
+                            Err(err) => match err {
+                                playboard::InvalidMove::AlreadyUsed => {
+                                    player_manager::msgs::send_already_taken(player_).await
+                                }
+                                _ => player_manager::msgs::send_invalid_input(player_).await,
+                            },
+                        };
+                    }
+                    false => {
+                        player_manager::msgs::send_you_are_not_on_move(
+                            players.get(&player_name).unwrap(),
+                        )
+                        .await
+                    }
                 }
-                false => msgs::send_you_are_not_on_move(players.get(&player_name).unwrap()).await,
-            },
+            }
 
             // Client disconnected
-            Msg::Disconnect(id) => {
+            player_manager::Msg::Disconnect(id) => {
                 players.remove(&id);
 
                 if game_stage == GameStage::PlayerOnMove {
-                    field.reset();
+                    playboard.reset();
                 }
 
                 if players.len() == 1 {
@@ -206,8 +161,8 @@ async fn game<T>(
                         player_.send_msg_to_player("\r\n".to_owned()).await
                     }
 
-                    msgs::send_players_leave_game(player_).await;
-                    msgs::send_waiting_for_another_player(player_).await;
+                    player_manager::msgs::send_players_leave_game(player_).await;
+                    player_manager::msgs::send_waiting_for_another_player(player_).await;
                     game_stage = GameStage::WaitingForPlayer(id);
                 } else {
                     game_stage = GameStage::WaitingForPlayers;
@@ -215,25 +170,4 @@ async fn game<T>(
             }
         };
     }
-}
-
-pub async fn run<T>(server_address: T)
-where
-    T: tokio::net::ToSocketAddrs,
-{
-    let listener = match tokio::net::TcpListener::bind(server_address).await {
-        Ok(x) => x,
-        Err(err) => {
-            println!("Fail to create new TCP listener: {:?}", err);
-            std::process::exit(2);
-        }
-    };
-
-    let (tx, rx) = tokio::sync::mpsc::channel(10);
-    let field = field::Field::new();
-
-    tokio::join!(
-        connection_listener(listener, tx.clone()),
-        game(field, tx, rx)
-    );
 }

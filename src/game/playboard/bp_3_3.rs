@@ -5,7 +5,7 @@ enum ConvertError {
 }
 
 struct SingleField {
-    field: Option<super::PlayerName>,
+    field: Option<super::super::PlayerName>,
 }
 
 impl SingleField {
@@ -13,7 +13,7 @@ impl SingleField {
         SingleField { field: None }
     }
 
-    fn used_by_user(&self, player: &super::PlayerName) -> bool {
+    fn used_by_user(&self, player: &super::super::PlayerName) -> bool {
         match &self.field {
             Some(x) => x == player,
             None => false,
@@ -28,8 +28,8 @@ impl std::fmt::Display for SingleField {
             "{}",
             match &self.field {
                 Some(x) => match x {
-                    super::PlayerName::Circle => "o",
-                    super::PlayerName::Cross => "x",
+                    super::super::PlayerName::Circle => "o",
+                    super::super::PlayerName::Cross => "x",
                 },
                 None => " ",
             }
@@ -60,22 +60,22 @@ fn convert_input_to_coordinates(input: &str) -> Result<[usize; 2], ConvertError>
 }
 
 // ---- Get iteration over "lines" ----
-fn get_iter_row(field: &Field, row_index: usize) -> std::slice::Iter<'_, SingleField> {
+fn get_iter_row(field: &Playboard, row_index: usize) -> std::slice::Iter<'_, SingleField> {
     field.fields[3 * row_index..3 * (row_index + 1)].iter()
 }
 
 fn get_iter_col_(
-    field: &Field,
+    field: &Playboard,
     col_index: usize,
 ) -> std::iter::StepBy<std::iter::Skip<std::slice::Iter<'_, SingleField>>> {
     field.fields.iter().skip(col_index).step_by(3)
 }
 
-fn get_iter_diag_neg(field: &Field) -> std::iter::StepBy<std::slice::Iter<'_, SingleField>> {
+fn get_iter_diag_neg(field: &Playboard) -> std::iter::StepBy<std::slice::Iter<'_, SingleField>> {
     field.fields.iter().step_by(4)
 }
 
-fn get_iter_diag_pos(field: &Field) -> std::iter::StepBy<std::slice::Iter<'_, SingleField>> {
+fn get_iter_diag_pos(field: &Playboard) -> std::iter::StepBy<std::slice::Iter<'_, SingleField>> {
     field.fields[2..7].iter().step_by(2)
 }
 
@@ -93,7 +93,7 @@ where
     }
 }
 
-fn check_for_win(field: &Field, position: usize) -> bool {
+fn check_for_win(field: &Playboard, position: usize) -> bool {
     // Check row and column
     if are_same_some_values(get_iter_row(field, position / 3))
         || are_same_some_values(get_iter_col_(field, position % 3))
@@ -126,8 +126,8 @@ where
     let score = data.fold(0_u16, |sum, item| {
         sum + match item.field {
             Some(x) => match x {
-                super::PlayerName::Circle => 1,
-                super::PlayerName::Cross => 10,
+                super::super::PlayerName::Circle => 1,
+                super::super::PlayerName::Cross => 10,
             },
             None => 100,
         }
@@ -136,7 +136,7 @@ where
     !(score == 12 || score == 21 || score == 111)
 }
 
-fn check_for_draw(field: &Field) -> bool {
+fn check_for_draw(field: &Playboard) -> bool {
     !is_line_capable(get_iter_row(field, 0))
         && !is_line_capable(get_iter_row(field, 1))
         && !is_line_capable(get_iter_row(field, 2))
@@ -149,13 +149,13 @@ fn check_for_draw(field: &Field) -> bool {
 
 // ---- Field struct ----
 
-pub struct Field {
+pub struct Playboard {
     fields: [SingleField; 9],
 }
 
-impl Field {
-    pub fn new() -> Field {
-        Field {
+impl Playboard {
+    pub fn new() -> Playboard {
+        Playboard {
             fields: [
                 SingleField::new(),
                 SingleField::new(),
@@ -171,11 +171,11 @@ impl Field {
     }
 }
 
-impl super::GameField for Field {
+impl super::Playboard for Playboard {
     fn new_move(
         &mut self,
         input: &str,
-        player_name: super::PlayerName,
+        player_name: super::super::PlayerName,
     ) -> Result<super::ValidMove, super::InvalidMove> {
         // Parse coordinates
         let [x, y] = match convert_input_to_coordinates(input) {
@@ -213,7 +213,7 @@ impl super::GameField for Field {
     }
 }
 
-impl std::fmt::Display for Field {
+impl std::fmt::Display for Playboard {
     #[rustfmt::skip]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
