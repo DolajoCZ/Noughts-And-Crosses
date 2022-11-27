@@ -207,10 +207,6 @@ impl super::Playboard for Playboard {
 
         Ok(super::ValidMove::Continue)
     }
-
-    fn reset(&mut self) {
-        self.fields.iter_mut().for_each(|x| *x = SingleField::new());
-    }
 }
 
 impl std::fmt::Display for Playboard {

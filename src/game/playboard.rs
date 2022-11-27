@@ -14,8 +14,6 @@ pub enum ValidMove {
 }
 
 pub trait Playboard {
-    fn reset(&mut self);
-
     fn new_move(
         &mut self,
         input: &str,

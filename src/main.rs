@@ -68,8 +68,7 @@ async fn main() {
     let addr = std::net::SocketAddr::new(address, port);
 
     println!("Game server running on address: {}:{}", address, port);
-    let playboard = game::playboard::bp_3_3::Playboard::new();
     let player_manager = game::player_manager::tcp::PlayerManager::new(addr).await;
 
-    game::run_game(player_manager, playboard).await;
+    game::run_game(player_manager, game::playboard::bp_3_3::Playboard::new).await;
 }

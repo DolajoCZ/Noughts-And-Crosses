@@ -30,13 +30,15 @@ impl std::fmt::Display for PlayerName {
     }
 }
 
-pub async fn run_game<T, R>(mut player_manager: T, mut playboard: R)
+pub async fn run_game<T, F, R>(mut player_manager: T, create_playboard: F)
 where
     T: player_manager::PlayerMangerTrait,
+    F: Fn() -> R,
     R: playboard::Playboard + std::fmt::Display,
 {
-    // let mut field = field::Field::new();
     let mut game_stage = GameStage::WaitingForPlayers;
+
+    let mut playboard = create_playboard();
 
     let mut players: std::collections::HashMap<PlayerName, T::Player> =
         std::collections::HashMap::with_capacity(2);
@@ -99,7 +101,7 @@ where
                                                 .await;
                                             player_manager::msgs::send_draw(player).await
                                         }
-                                        playboard.reset();
+                                        playboard = create_playboard();
                                     }
                                     playboard::ValidMove::Win => {
                                         for player in players.values() {
@@ -116,7 +118,7 @@ where
                                         )
                                         .await;
 
-                                        playboard.reset();
+                                        playboard = create_playboard();
                                     }
                                 }
 
@@ -151,7 +153,7 @@ where
                 players.remove(&id);
 
                 if game_stage == GameStage::PlayerOnMove {
-                    playboard.reset();
+                    playboard = create_playboard();
                 }
 
                 if players.len() == 1 {
