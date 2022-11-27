@@ -4,6 +4,7 @@ enum ConvertError {
     InvalidRange,
 }
 
+#[derive(Clone, Copy)]
 struct SingleField {
     field: Option<super::super::PlayerName>,
 }
@@ -156,17 +157,7 @@ pub struct Playboard {
 impl Playboard {
     pub fn new() -> Playboard {
         Playboard {
-            fields: [
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-                SingleField::new(),
-            ],
+            fields: [SingleField::new(); 9],
         }
     }
 }
