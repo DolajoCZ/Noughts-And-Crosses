@@ -1,6 +1,65 @@
+use std::io::Write;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 use super::Msg;
+
+fn get_available_interfaces() -> Result<Vec<(String, std::net::IpAddr)>, ()> {
+    let network_interfaces = local_ip_address::list_afinet_netifas().map_err(|err| {
+        log::error!("Unable to load network interfaces: {}", err);
+        ()
+    })?;
+
+    log::info!("Available interfaces are:");
+    for (index, (name, addr)) in network_interfaces.iter().enumerate() {
+        log::info!("Id: {} - Name: {} - Ip address: {}", index, name, addr);
+    }
+
+    Ok(network_interfaces)
+}
+
+fn get_user_input() -> Result<usize, ()> {
+    log::info!("Please select interface Id: ");
+    std::io::stdout().flush().map_err(|err| {
+        log::error!("Unable to read user input: {}", err);
+        ()
+    })?;
+
+    // Read user input
+    let mut user_input = String::new();
+
+    let length = std::io::stdin().read_line(&mut user_input).map_err(|err| {
+        log::error!("Unable to read user input: {}", err);
+        ()
+    })?;
+
+    let user_input = &user_input[..length];
+
+    let user_input = user_input
+        .strip_suffix("\r\n")
+        .unwrap_or(user_input.strip_suffix("\n").unwrap_or(user_input));
+
+    user_input.parse().map_err(|_| {
+        log::error!(
+            "Unable to convert \"{}\" to integer in range [0 - {}]",
+            &user_input,
+            usize::MAX
+        );
+        ()
+    })
+}
+
+pub fn select_network() -> Result<std::net::IpAddr, ()> {
+    let interfaces = get_available_interfaces()?;
+    let index = get_user_input()?;
+
+    match interfaces.get(index) {
+        Some(x) => Ok(x.1),
+        None => {
+            log::error!("Used index is out of options");
+            Err(())
+        }
+    }
+}
 
 pub struct NewPlayerData {
     stream: tokio::net::TcpStream,
@@ -149,24 +208,49 @@ async fn connection_listener(
     }
 }
 
+async fn get_available_listener(
+    ip: std::net::IpAddr,
+) -> tokio::io::Result<tokio::net::TcpListener> {
+    for port in 49152..65535 {
+        let socket_addr = std::net::SocketAddr::new(ip, port);
+
+        match tokio::net::TcpListener::bind(socket_addr).await {
+            Ok(x) => return Ok(x),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::AddrInUse => continue,
+                _ => return Err(err),
+            },
+        }
+    }
+
+    Err(std::io::Error::from(std::io::ErrorKind::AddrInUse))
+}
+
 impl PlayerManager {
-    pub async fn new<T>(addr: T) -> Self
-    where
-        T: tokio::net::ToSocketAddrs,
-    {
-        let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(x) => x,
-            Err(err) => {
-                println!("Fail to create new TCP listener: {:?}", err);
-                std::process::exit(2);
-            }
-        };
+    pub fn new(listener: tokio::net::TcpListener) -> Self {
+        log::info!(
+            "TCP player manager running on address: {}",
+            listener.local_addr().unwrap()
+        );
 
         let (tx, rx) = tokio::sync::mpsc::channel(10);
 
         tokio::spawn(connection_listener(listener, tx.clone()));
 
         PlayerManager { tx, rx }
+    }
+
+    pub async fn from_ip(ip: std::net::IpAddr) -> Result<PlayerManager, std::io::Error> {
+        let listener = get_available_listener(ip).await?;
+        Ok(Self::new(listener))
+    }
+
+    pub async fn from_socket_address<T>(addr: T) -> Result<PlayerManager, std::io::Error>
+    where
+        T: tokio::net::ToSocketAddrs,
+    {
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        Ok(Self::new(listener))
     }
 }
 
