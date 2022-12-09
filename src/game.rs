@@ -40,7 +40,7 @@ where
 
     let mut playboard = create_playboard();
 
-    let mut players: std::collections::HashMap<PlayerName, T::Player<'_>> =
+    let mut players: std::collections::HashMap<PlayerName, T::NewPlayer<'_>> =
         std::collections::HashMap::with_capacity(2);
 
     let mut player_on_move = PlayerName::Circle;
@@ -48,7 +48,7 @@ where
 
     loop {
         match player_manager.receive_new_message().await {
-            player_manager::Msg::NewConnection(new_player_data) => {
+            player_manager::MsgFromPlayer::Join(new_player_data) => {
                 match game_stage {
                     GameStage::WaitingForPlayers => {
                         let mut player =
@@ -79,7 +79,9 @@ where
                                 .send_msg_to_player(player_manager::MsgToPlayer::PlayersAreReady)
                                 .await;
                             player
-                                .send_msg_to_player(player_manager::MsgToPlayer::Field(&playboard))
+                                .send_msg_to_player(player_manager::MsgToPlayer::Playboard(
+                                    &playboard,
+                                ))
                                 .await;
                         }
 
@@ -103,7 +105,7 @@ where
                     }
                 }
             }
-            player_manager::Msg::FromClient(player_name, msg) => {
+            player_manager::MsgFromPlayer::Msg(player_name, msg) => {
                 match player_name == player_on_move {
                     true => {
                         let player_ = players.get_mut(&player_on_move).unwrap();
@@ -116,7 +118,9 @@ where
                                         for player in players.values_mut() {
                                             player
                                                 .send_msg_to_player(
-                                                    player_manager::MsgToPlayer::Field(&playboard),
+                                                    player_manager::MsgToPlayer::Playboard(
+                                                        &playboard,
+                                                    ),
                                                 )
                                                 .await;
 
@@ -132,7 +136,9 @@ where
                                         for player in players.values_mut() {
                                             player
                                                 .send_msg_to_player(
-                                                    player_manager::MsgToPlayer::Field(&playboard),
+                                                    player_manager::MsgToPlayer::Playboard(
+                                                        &playboard,
+                                                    ),
                                                 )
                                                 .await;
                                         }
@@ -160,14 +166,14 @@ where
                                 players
                                     .get_mut(&player_on_move)
                                     .unwrap()
-                                    .send_msg_to_player(player_manager::MsgToPlayer::Field(
+                                    .send_msg_to_player(player_manager::MsgToPlayer::Playboard(
                                         &playboard,
                                     ))
                                     .await;
                                 players
                                     .get_mut(&player_waiting)
                                     .unwrap()
-                                    .send_msg_to_player(player_manager::MsgToPlayer::Field(
+                                    .send_msg_to_player(player_manager::MsgToPlayer::Playboard(
                                         &playboard,
                                     ))
                                     .await;
@@ -214,7 +220,7 @@ where
             }
 
             // Client disconnected
-            player_manager::Msg::Disconnect(id) => {
+            player_manager::MsgFromPlayer::Leave(id) => {
                 players.remove(&id);
 
                 if game_stage == GameStage::PlayerOnMove {

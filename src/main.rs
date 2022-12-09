@@ -1,5 +1,8 @@
+#![warn(clippy::missing_docs_in_private_items)]
+//! This is crate for playing noughts and crosses game
 mod game;
 
+///Get user arguments from cmd
 fn get_args() -> clap::ArgMatches {
     clap::Command::new("Noughts and crosses")
         .arg(
@@ -13,6 +16,7 @@ fn get_args() -> clap::ArgMatches {
         .get_matches()
 }
 
+/// Set logger
 fn set_logger() -> Result<(), log::SetLoggerError> {
     simplelog::CombinedLogger::init(vec![simplelog::TermLogger::new(
         simplelog::LevelFilter::Info,

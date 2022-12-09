@@ -1,7 +1,7 @@
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
-use super::Msg;
+use super::MsgFromPlayer;
 
 fn get_available_interfaces() -> Result<Vec<(String, std::net::IpAddr)>, ()> {
     let network_interfaces = local_ip_address::list_afinet_netifas().map_err(|err| {
@@ -74,7 +74,7 @@ pub struct Player {
 async fn player_communication(
     player_name: super::super::PlayerName,
     mut stream: tokio::net::TcpStream,
-    tx_game: tokio::sync::mpsc::Sender<Msg<NewPlayerData>>,
+    tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<NewPlayerData>>,
     mut rx_client: tokio::sync::mpsc::Receiver<String>,
 ) {
     let (reader, mut writer) = stream.split();
@@ -89,11 +89,11 @@ async fn player_communication(
             msg_length = buff.read_line(&mut line) => {
                 // Connection closed
                 if msg_length.unwrap() == 0 {
-                    tx_game.send(Msg::Disconnect(player_name)).await;
+                    tx_game.send(MsgFromPlayer::Leave(player_name)).await;
                     return ;
                 }
                 // Send message from client
-                tx_game.send(Msg::FromClient(player_name, line[..line.len() - 1].to_owned())).await;
+                tx_game.send(MsgFromPlayer::Msg(player_name, line[..line.len() - 1].to_owned())).await;
                 line.clear();
             }
             // Sending message to client
@@ -108,7 +108,7 @@ impl Player {
     pub fn new(
         player_name: super::super::PlayerName,
         stream: tokio::net::TcpStream,
-        tx_game: tokio::sync::mpsc::Sender<Msg<NewPlayerData>>,
+        tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<NewPlayerData>>,
     ) -> Player {
         let (tx_client, rx_client) = tokio::sync::mpsc::channel(5);
 
@@ -155,14 +155,14 @@ impl<T> super::PlayerTrait<T> for Player {
             super::MsgToPlayer::YouWon => "Congratulation, you win.\r\n".to_owned(),
             super::MsgToPlayer::YouLose => "Unfortunately you lose.\r\n".to_owned(),
             super::MsgToPlayer::Draw => "Nobody win\r\n".to_owned(),
-            super::MsgToPlayer::Field(T) => {
+            super::MsgToPlayer::Playboard(T) => {
                 format!("------------------\r\nCurrent game field\r\n\r\n{}\r\n", T)
             }
         };
 
         // Add player name prefix
         match msg {
-            super::MsgToPlayer::Field(_) => (),
+            super::MsgToPlayer::Playboard(_) => (),
             _ => {
                 text = format!(
                     "[{}] {}",
@@ -192,18 +192,18 @@ impl<T> super::PlayerTrait<T> for Player {
 }
 
 pub struct PlayerManager {
-    tx: tokio::sync::mpsc::Sender<super::Msg<NewPlayerData>>,
-    rx: tokio::sync::mpsc::Receiver<super::Msg<NewPlayerData>>,
+    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<NewPlayerData>>,
+    rx: tokio::sync::mpsc::Receiver<super::MsgFromPlayer<NewPlayerData>>,
 }
 
 async fn connection_listener(
     listener: tokio::net::TcpListener,
-    tx: tokio::sync::mpsc::Sender<super::Msg<NewPlayerData>>,
+    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<NewPlayerData>>,
 ) {
     loop {
         let (stream, address) = listener.accept().await.unwrap();
 
-        tx.send(super::Msg::NewConnection(NewPlayerData { stream: stream }))
+        tx.send(super::MsgFromPlayer::Join(NewPlayerData { stream: stream }))
             .await;
     }
 }
@@ -257,17 +257,17 @@ impl PlayerManager {
 #[async_trait::async_trait]
 impl<T> super::PlayerMangerTrait<T> for PlayerManager {
     type NewPlayerData = NewPlayerData;
-    type Player<'a> = Player;
+    type NewPlayer<'a> = Player;
 
     fn create_new_player<'a>(
         &self,
         player_name: super::super::PlayerName,
         player_data: Self::NewPlayerData,
-    ) -> Self::Player<'a> {
+    ) -> Self::NewPlayer<'a> {
         Player::new(player_name, player_data.stream, self.tx.clone())
     }
 
-    async fn receive_new_message(&mut self) -> Msg<Self::NewPlayerData> {
+    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData> {
         return self.rx.recv().await.unwrap();
     }
 }
