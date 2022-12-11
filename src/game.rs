@@ -1,20 +1,26 @@
+//! Module for noughts and crosses game
 pub mod playboard;
 pub mod player_manager;
 
 use player_manager::PlayerTrait;
 
-// ---- Common ----
-
+/// Enum for game stage
 #[derive(PartialEq)]
 enum GameStage {
+    /// Waiting for both players
     WaitingForPlayers,
+    /// Waiting for specific player
     WaitingForPlayer(PlayerId),
+    /// Both players are available - player is on move
     PlayerOnMove,
 }
 
+/// Enum for player id
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
 pub enum PlayerId {
+    /// Player playing for circle
     Circle,
+    /// Player playing for cross
     Cross,
 }
 
@@ -30,6 +36,7 @@ impl std::fmt::Display for PlayerId {
     }
 }
 
+/// Run game
 pub async fn run_game<T, F, R>(mut player_manager: T, create_playboard: F)
 where
     T: player_manager::PlayerMangerTrait<R>,
