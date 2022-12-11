@@ -8,17 +8,17 @@ use player_manager::PlayerTrait;
 #[derive(PartialEq)]
 enum GameStage {
     WaitingForPlayers,
-    WaitingForPlayer(PlayerName),
+    WaitingForPlayer(PlayerId),
     PlayerOnMove,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
-pub enum PlayerName {
+pub enum PlayerId {
     Circle,
     Cross,
 }
 
-impl std::fmt::Display for PlayerName {
+impl std::fmt::Display for PlayerId {
     #[rustfmt::skip]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
@@ -40,11 +40,11 @@ where
 
     let mut playboard = create_playboard();
 
-    let mut players: std::collections::HashMap<PlayerName, T::NewPlayer<'_>> =
+    let mut players: std::collections::HashMap<PlayerId, T::NewPlayer<'_>> =
         std::collections::HashMap::with_capacity(2);
 
-    let mut player_on_move = PlayerName::Circle;
-    let mut player_waiting = PlayerName::Cross;
+    let mut player_on_move = PlayerId::Circle;
+    let mut player_waiting = PlayerId::Cross;
 
     loop {
         match player_manager.receive_new_message().await {
@@ -52,7 +52,7 @@ where
                 match game_stage {
                     GameStage::WaitingForPlayers => {
                         let mut player =
-                            player_manager.create_new_player(PlayerName::Circle, new_player_data);
+                            player_manager.create_new_player(PlayerId::Circle, new_player_data);
 
                         player
                             .send_msg_to_player(player_manager::MsgToPlayer::WelcomePlayer)
@@ -62,17 +62,17 @@ where
                             .send_msg_to_player(player_manager::MsgToPlayer::WaitingForOtherPlayer)
                             .await;
 
-                        players.insert(player.get_name(), player);
+                        players.insert(player.get_player_id(), player);
 
-                        game_stage = GameStage::WaitingForPlayer(PlayerName::Cross);
+                        game_stage = GameStage::WaitingForPlayer(PlayerId::Cross);
                     }
-                    GameStage::WaitingForPlayer(player_name) => {
+                    GameStage::WaitingForPlayer(player_id) => {
                         let mut player =
-                            player_manager.create_new_player(player_name, new_player_data);
+                            player_manager.create_new_player(player_id, new_player_data);
                         player
                             .send_msg_to_player(player_manager::MsgToPlayer::WelcomePlayer)
                             .await;
-                        players.insert(player.get_name(), player);
+                        players.insert(player.get_player_id(), player);
 
                         for player in players.values_mut() {
                             player
@@ -105,12 +105,12 @@ where
                     }
                 }
             }
-            player_manager::MsgFromPlayer::Msg(player_name, msg) => {
-                match player_name == player_on_move {
+            player_manager::MsgFromPlayer::Msg(player_id, msg) => {
+                match player_id == player_on_move {
                     true => {
                         let player_ = players.get_mut(&player_on_move).unwrap();
 
-                        match playboard.new_move(&msg, player_name) {
+                        match playboard.new_move(&msg, player_id) {
                             Ok(res) => {
                                 match res {
                                     playboard::ValidMove::Continue => (),
@@ -211,7 +211,7 @@ where
                     }
                     false => {
                         players
-                            .get_mut(&player_name)
+                            .get_mut(&player_id)
                             .unwrap()
                             .send_msg_to_player(player_manager::MsgToPlayer::YouAreNotOnMove)
                             .await

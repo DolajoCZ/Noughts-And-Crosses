@@ -6,7 +6,7 @@ enum ConvertError {
 
 #[derive(Clone, Copy)]
 struct SingleField {
-    field: Option<super::super::PlayerName>,
+    field: Option<super::super::PlayerId>,
 }
 
 impl SingleField {
@@ -14,7 +14,7 @@ impl SingleField {
         SingleField { field: None }
     }
 
-    fn used_by_user(&self, player: &super::super::PlayerName) -> bool {
+    fn used_by_user(&self, player: &super::super::PlayerId) -> bool {
         match &self.field {
             Some(x) => x == player,
             None => false,
@@ -29,8 +29,8 @@ impl std::fmt::Display for SingleField {
             "{}",
             match &self.field {
                 Some(x) => match x {
-                    super::super::PlayerName::Circle => "o",
-                    super::super::PlayerName::Cross => "x",
+                    super::super::PlayerId::Circle => "o",
+                    super::super::PlayerId::Cross => "x",
                 },
                 None => " ",
             }
@@ -127,8 +127,8 @@ where
     let score = data.fold(0_u16, |sum, item| {
         sum + match item.field {
             Some(x) => match x {
-                super::super::PlayerName::Circle => 1,
-                super::super::PlayerName::Cross => 10,
+                super::super::PlayerId::Circle => 1,
+                super::super::PlayerId::Cross => 10,
             },
             None => 100,
         }
@@ -166,7 +166,7 @@ impl super::Playboard for Playboard {
     fn new_move(
         &mut self,
         input: &str,
-        player_name: super::super::PlayerName,
+        player_id: super::super::PlayerId,
     ) -> Result<super::ValidMove, super::InvalidMove> {
         // Parse coordinates
         let [x, y] = match convert_input_to_coordinates(input) {
@@ -185,7 +185,7 @@ impl super::Playboard for Playboard {
         // Save data to field
         let position = 3 * x + y;
         self.fields[position] = SingleField {
-            field: Some(player_name),
+            field: Some(player_id),
         };
 
         if check_for_win(&self, position) {

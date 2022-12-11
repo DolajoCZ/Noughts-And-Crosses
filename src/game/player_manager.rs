@@ -37,8 +37,8 @@ where
 /// Trait for player struct
 #[async_trait::async_trait]
 pub trait PlayerTrait<T> {
-    /// Get player name
-    fn get_name(&self) -> super::PlayerName;
+    /// Get player id
+    fn get_player_id(&self) -> super::PlayerId;
 
     /// Send new message to player
     async fn send_msg_to_player(&mut self, msg: MsgToPlayer<'_, T>)
@@ -51,9 +51,9 @@ pub enum MsgFromPlayer<T> {
     /// New player joined
     Join(T),
     /// Message from player
-    Msg(super::PlayerName, String),
+    Msg(super::PlayerId, String),
     /// Player leave
-    Leave(super::PlayerName),
+    Leave(super::PlayerId),
 }
 
 /// Trait for player manager struct
@@ -67,7 +67,7 @@ pub trait PlayerMangerTrait<T> {
     /// Creating new player from player_data
     fn create_new_player<'a>(
         &self,
-        player_name: super::PlayerName,
+        player_id: super::PlayerId,
         player_data: Self::NewPlayerData,
     ) -> Self::NewPlayer<'a>;
 

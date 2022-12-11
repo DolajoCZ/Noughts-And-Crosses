@@ -27,6 +27,6 @@ pub trait Playboard {
     fn new_move(
         &mut self,
         input: &str,
-        player_name: super::PlayerName,
+        player_id: super::PlayerId,
     ) -> Result<ValidMove, InvalidMove>;
 }

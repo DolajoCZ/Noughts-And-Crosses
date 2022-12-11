@@ -66,13 +66,13 @@ pub struct NewPlayerData {
 }
 
 pub struct Player {
-    name: super::super::PlayerName,
+    id: super::super::PlayerId,
     tx_client: tokio::sync::mpsc::Sender<String>,
     last_msg_ends_with_new_line: bool,
 }
 
 async fn player_communication(
-    player_name: super::super::PlayerName,
+    player_id: super::super::PlayerId,
     mut stream: tokio::net::TcpStream,
     tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<NewPlayerData>>,
     mut rx_client: tokio::sync::mpsc::Receiver<String>,
@@ -89,11 +89,11 @@ async fn player_communication(
             msg_length = buff.read_line(&mut line) => {
                 // Connection closed
                 if msg_length.unwrap() == 0 {
-                    tx_game.send(MsgFromPlayer::Leave(player_name)).await;
+                    tx_game.send(MsgFromPlayer::Leave(player_id)).await;
                     return ;
                 }
                 // Send message from client
-                tx_game.send(MsgFromPlayer::Msg(player_name, line[..line.len() - 1].to_owned())).await;
+                tx_game.send(MsgFromPlayer::Msg(player_id, line[..line.len() - 1].to_owned())).await;
                 line.clear();
             }
             // Sending message to client
@@ -106,21 +106,16 @@ async fn player_communication(
 
 impl Player {
     pub fn new(
-        player_name: super::super::PlayerName,
+        player_id: super::super::PlayerId,
         stream: tokio::net::TcpStream,
         tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<NewPlayerData>>,
     ) -> Player {
         let (tx_client, rx_client) = tokio::sync::mpsc::channel(5);
 
-        tokio::spawn(player_communication(
-            player_name,
-            stream,
-            tx_game,
-            rx_client,
-        ));
+        tokio::spawn(player_communication(player_id, stream, tx_game, rx_client));
 
         Player {
-            name: player_name,
+            id: player_id,
             tx_client,
             last_msg_ends_with_new_line: true,
         }
@@ -166,7 +161,7 @@ impl<T> super::PlayerTrait<T> for Player {
             _ => {
                 text = format!(
                     "[{}] {}",
-                    <Player as super::PlayerTrait<T>>::get_name(self),
+                    <Player as super::PlayerTrait<T>>::get_player_id(self),
                     text
                 )
             }
@@ -186,8 +181,8 @@ impl<T> super::PlayerTrait<T> for Player {
         self.tx_client.send(text).await;
     }
 
-    fn get_name(&self) -> super::super::PlayerName {
-        self.name
+    fn get_player_id(&self) -> super::super::PlayerId {
+        self.id
     }
 }
 
@@ -261,10 +256,10 @@ impl<T> super::PlayerMangerTrait<T> for PlayerManager {
 
     fn create_new_player<'a>(
         &self,
-        player_name: super::super::PlayerName,
+        player_id: super::super::PlayerId,
         player_data: Self::NewPlayerData,
     ) -> Self::NewPlayer<'a> {
-        Player::new(player_name, player_data.stream, self.tx.clone())
+        Player::new(player_id, player_data.stream, self.tx.clone())
     }
 
     async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData> {
