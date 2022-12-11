@@ -139,7 +139,9 @@ impl<T> super::PlayerTrait<T> for Player {
             }
             super::MsgToPlayer::YourAreOnMove => "Now you are on move: ".to_owned(),
             super::MsgToPlayer::OtherPlayerIsOnMove => "Now is other player on move\r\n".to_owned(),
-            super::MsgToPlayer::InvalidInput => "We are waiting for another player\r\n".to_owned(),
+            super::MsgToPlayer::InvalidInput => {
+                "You pass invalid input. Please repeat your input: ".to_owned()
+            }
             super::MsgToPlayer::AlreadyTaken => {
                 "Required field is already taken. Please repeat your input: ".to_owned()
             }
