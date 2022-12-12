@@ -50,7 +50,7 @@ impl std::ops::Not for PlayerId {
 /// Run game
 pub async fn run_game<T, F, R>(mut player_manager: T, create_playboard: F)
 where
-    T: player_manager::PlayerMangerTrait<R>,
+    T: player_manager::PlayerManagerTrait<R>,
     F: Fn() -> R,
     R: playboard::Playboard + std::fmt::Display + std::marker::Sync,
 {

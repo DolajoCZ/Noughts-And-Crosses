@@ -252,7 +252,7 @@ impl PlayerManager {
 }
 
 #[async_trait::async_trait]
-impl<T> super::PlayerMangerTrait<T> for PlayerManager {
+impl<T> super::PlayerManagerTrait<T> for PlayerManager {
     type NewPlayerData = NewPlayerData;
     type NewPlayer<'a> = Player;
 

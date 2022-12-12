@@ -58,7 +58,7 @@ pub enum MsgFromPlayer<T> {
 
 /// Trait for player manager struct
 #[async_trait::async_trait]
-pub trait PlayerMangerTrait<T> {
+pub trait PlayerManagerTrait<T> {
     /// Struct containing necessary data for crating new player
     type NewPlayerData;
     /// Struct returned by create_new_player
