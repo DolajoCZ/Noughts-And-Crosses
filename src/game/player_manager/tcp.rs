@@ -70,7 +70,7 @@ pub struct Player {
 async fn player_communication(
     player_id: super::super::PlayerId,
     mut stream: tokio::net::TcpStream,
-    tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<tokio::net::TcpStream>>,
+    tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<tokio::net::TcpStream, String>>,
     mut rx_client: tokio::sync::mpsc::Receiver<String>,
 ) {
     let (reader, mut writer) = stream.split();
@@ -104,7 +104,7 @@ impl Player {
     pub fn new(
         player_id: super::super::PlayerId,
         stream: tokio::net::TcpStream,
-        tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<tokio::net::TcpStream>>,
+        tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<tokio::net::TcpStream, String>>,
     ) -> Player {
         let (tx_client, rx_client) = tokio::sync::mpsc::channel(5);
 
@@ -185,13 +185,13 @@ impl<T> super::PlayerTrait<T> for Player {
 }
 
 pub struct PlayerManager {
-    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<tokio::net::TcpStream>>,
-    rx: tokio::sync::mpsc::Receiver<super::MsgFromPlayer<tokio::net::TcpStream>>,
+    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<tokio::net::TcpStream, String>>,
+    rx: tokio::sync::mpsc::Receiver<super::MsgFromPlayer<tokio::net::TcpStream, String>>,
 }
 
 async fn connection_listener(
     listener: tokio::net::TcpListener,
-    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<tokio::net::TcpStream>>,
+    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<tokio::net::TcpStream, String>>,
 ) {
     loop {
         let (stream, address) = listener.accept().await.unwrap();
@@ -250,6 +250,7 @@ impl PlayerManager {
 impl<T> super::PlayerManagerTrait<T> for PlayerManager {
     type NewPlayerData = tokio::net::TcpStream;
     type NewPlayer<'a> = Player;
+    type Output = String;
 
     fn create_new_player<'a>(
         &self,
@@ -259,7 +260,7 @@ impl<T> super::PlayerManagerTrait<T> for PlayerManager {
         Player::new(player_id, player_data, self.tx.clone())
     }
 
-    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData> {
+    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::Output> {
         return self.rx.recv().await.unwrap();
     }
 }

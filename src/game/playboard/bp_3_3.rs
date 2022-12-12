@@ -163,13 +163,15 @@ impl Playboard {
 }
 
 impl super::Playboard for Playboard {
+    type Input = String;
+
     fn new_move(
         &mut self,
-        input: &str,
+        input: Self::Input,
         player_id: super::super::PlayerId,
     ) -> Result<super::ValidMove, super::InvalidMove> {
         // Parse coordinates
-        let [x, y] = match convert_input_to_coordinates(input) {
+        let [x, y] = match convert_input_to_coordinates(input.as_ref()) {
             Ok(k) => k,
             Err(e) => match e {
                 ConvertError::InvalidInput => return Err(super::InvalidMove::InvalidInput),

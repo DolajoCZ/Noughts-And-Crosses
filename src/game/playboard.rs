@@ -23,10 +23,12 @@ pub enum ValidMove {
 
 /// Trait for playboard struct
 pub trait Playboard {
+    type Input;
+
     /// Make new move on playboard
     fn new_move(
         &mut self,
-        input: &str,
+        input: Self::Input,
         player_id: super::PlayerId,
     ) -> Result<ValidMove, InvalidMove>;
 }

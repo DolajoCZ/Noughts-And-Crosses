@@ -48,10 +48,11 @@ impl std::ops::Not for PlayerId {
 }
 
 /// Run game
-pub async fn run_game<T, F, R>(mut player_manager: T, create_playboard: F)
+pub async fn run_game<T, F, F2, R>(mut player_manager: T, create_playboard: F, converter: F2)
 where
     T: player_manager::PlayerManagerTrait<R>,
     F: Fn() -> R,
+    F2: Fn(T::Output) -> R::Input,
     R: playboard::Playboard + std::fmt::Display + std::marker::Sync,
 {
     let mut game_stage = GameStage::WaitingForPlayers;
@@ -126,7 +127,7 @@ where
                         true => {
                             let player_ = players.get_mut(&player_on_move).unwrap();
 
-                            match playboard.new_move(&msg, player_id) {
+                            match playboard.new_move(converter(msg), player_id) {
                                 Ok(res) => {
                                     match res {
                                         playboard::ValidMove::Continue => (),
