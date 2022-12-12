@@ -61,10 +61,6 @@ pub fn select_network() -> Result<std::net::IpAddr, ()> {
     }
 }
 
-pub struct NewPlayerData {
-    stream: tokio::net::TcpStream,
-}
-
 pub struct Player {
     id: super::super::PlayerId,
     tx_client: tokio::sync::mpsc::Sender<String>,
@@ -74,7 +70,7 @@ pub struct Player {
 async fn player_communication(
     player_id: super::super::PlayerId,
     mut stream: tokio::net::TcpStream,
-    tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<NewPlayerData>>,
+    tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<tokio::net::TcpStream>>,
     mut rx_client: tokio::sync::mpsc::Receiver<String>,
 ) {
     let (reader, mut writer) = stream.split();
@@ -108,7 +104,7 @@ impl Player {
     pub fn new(
         player_id: super::super::PlayerId,
         stream: tokio::net::TcpStream,
-        tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<NewPlayerData>>,
+        tx_game: tokio::sync::mpsc::Sender<MsgFromPlayer<tokio::net::TcpStream>>,
     ) -> Player {
         let (tx_client, rx_client) = tokio::sync::mpsc::channel(5);
 
@@ -189,19 +185,18 @@ impl<T> super::PlayerTrait<T> for Player {
 }
 
 pub struct PlayerManager {
-    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<NewPlayerData>>,
-    rx: tokio::sync::mpsc::Receiver<super::MsgFromPlayer<NewPlayerData>>,
+    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<tokio::net::TcpStream>>,
+    rx: tokio::sync::mpsc::Receiver<super::MsgFromPlayer<tokio::net::TcpStream>>,
 }
 
 async fn connection_listener(
     listener: tokio::net::TcpListener,
-    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<NewPlayerData>>,
+    tx: tokio::sync::mpsc::Sender<super::MsgFromPlayer<tokio::net::TcpStream>>,
 ) {
     loop {
         let (stream, address) = listener.accept().await.unwrap();
 
-        tx.send(super::MsgFromPlayer::Join(NewPlayerData { stream: stream }))
-            .await;
+        tx.send(super::MsgFromPlayer::Join(stream)).await;
     }
 }
 
@@ -253,7 +248,7 @@ impl PlayerManager {
 
 #[async_trait::async_trait]
 impl<T> super::PlayerManagerTrait<T> for PlayerManager {
-    type NewPlayerData = NewPlayerData;
+    type NewPlayerData = tokio::net::TcpStream;
     type NewPlayer<'a> = Player;
 
     fn create_new_player<'a>(
@@ -261,7 +256,7 @@ impl<T> super::PlayerManagerTrait<T> for PlayerManager {
         player_id: super::super::PlayerId,
         player_data: Self::NewPlayerData,
     ) -> Self::NewPlayer<'a> {
-        Player::new(player_id, player_data.stream, self.tx.clone())
+        Player::new(player_id, player_data, self.tx.clone())
     }
 
     async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData> {
