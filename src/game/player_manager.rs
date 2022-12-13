@@ -64,7 +64,7 @@ pub trait PlayerManagerTrait<T> {
     /// Struct returned by create_new_player
     type NewPlayer<'a>: PlayerTrait<T>;
 
-    type Output;
+    type PlayerMsg;
 
     /// Creating new player from player_data
     fn create_new_player<'a>(
@@ -74,5 +74,5 @@ pub trait PlayerManagerTrait<T> {
     ) -> Self::NewPlayer<'a>;
 
     /// Read new message from players
-    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::Output>;
+    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::PlayerMsg>;
 }

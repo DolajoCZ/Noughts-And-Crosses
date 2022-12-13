@@ -1,4 +1,5 @@
 //! Module for noughts and crosses game
+pub mod converters;
 pub mod playboard;
 pub mod player_manager;
 
@@ -48,12 +49,12 @@ impl std::ops::Not for PlayerId {
 }
 
 /// Run game
-pub async fn run_game<T, F, F2, R>(mut player_manager: T, create_playboard: F, converter: F2)
+pub async fn run_game<T, U, V, W>(mut player_manager: T, create_playboard: V, converter: W)
 where
-    T: player_manager::PlayerManagerTrait<R>,
-    F: Fn() -> R,
-    F2: Fn(T::Output) -> R::Input,
-    R: playboard::Playboard + std::fmt::Display + std::marker::Sync,
+    T: player_manager::PlayerManagerTrait<U>,
+    U: playboard::Playboard + std::fmt::Display + std::marker::Sync,
+    V: Fn() -> U,
+    W: Fn(T::PlayerMsg) -> converters::ConversionResult<U::Position>,
 {
     let mut game_stage = GameStage::WaitingForPlayers;
 
@@ -127,107 +128,116 @@ where
                         true => {
                             let player_ = players.get_mut(&player_on_move).unwrap();
 
-                            match playboard.new_move(converter(msg), player_id) {
-                                Ok(res) => {
-                                    match res {
-                                        playboard::ValidMove::Continue => (),
-                                        playboard::ValidMove::Draw => {
-                                            for player in players.values_mut() {
-                                                player
-                                                    .send_msg_to_player(
-                                                        player_manager::MsgToPlayer::Playboard(
-                                                            &playboard,
-                                                        ),
-                                                    )
-                                                    .await;
+                            match converter(msg) {
+                                Ok(position) => match playboard.new_move(position, player_id) {
+                                    Ok(res) => {
+                                        match res {
+                                            playboard::ValidMove::Continue => (),
+                                            playboard::ValidMove::Draw => {
+                                                for player in players.values_mut() {
+                                                    player
+                                                        .send_msg_to_player(
+                                                            player_manager::MsgToPlayer::Playboard(
+                                                                &playboard,
+                                                            ),
+                                                        )
+                                                        .await;
 
-                                                player
-                                                    .send_msg_to_player(
-                                                        player_manager::MsgToPlayer::Draw,
-                                                    )
-                                                    .await;
+                                                    player
+                                                        .send_msg_to_player(
+                                                            player_manager::MsgToPlayer::Draw,
+                                                        )
+                                                        .await;
+                                                }
+                                                playboard = create_playboard();
                                             }
-                                            playboard = create_playboard();
-                                        }
-                                        playboard::ValidMove::Win => {
-                                            for player in players.values_mut() {
-                                                player
+                                            playboard::ValidMove::Win => {
+                                                for player in players.values_mut() {
+                                                    player
+                                                        .send_msg_to_player(
+                                                            player_manager::MsgToPlayer::Playboard(
+                                                                &playboard,
+                                                            ),
+                                                        )
+                                                        .await;
+                                                }
+
+                                                players
+                                                    .get_mut(&player_on_move)
+                                                    .unwrap()
                                                     .send_msg_to_player(
-                                                        player_manager::MsgToPlayer::Playboard(
-                                                            &playboard,
-                                                        ),
+                                                        player_manager::MsgToPlayer::YouWon,
                                                     )
                                                     .await;
+
+                                                players
+                                                    .get_mut(&!player_on_move)
+                                                    .unwrap()
+                                                    .send_msg_to_player(
+                                                        player_manager::MsgToPlayer::YouLose,
+                                                    )
+                                                    .await;
+
+                                                playboard = create_playboard();
                                             }
-
-                                            players
-                                                .get_mut(&player_on_move)
-                                                .unwrap()
-                                                .send_msg_to_player(
-                                                    player_manager::MsgToPlayer::YouWon,
-                                                )
-                                                .await;
-
-                                            players
-                                                .get_mut(&!player_on_move)
-                                                .unwrap()
-                                                .send_msg_to_player(
-                                                    player_manager::MsgToPlayer::YouLose,
-                                                )
-                                                .await;
-
-                                            playboard = create_playboard();
                                         }
-                                    }
 
-                                    players
-                                        .get_mut(&!player_on_move)
-                                        .unwrap()
-                                        .send_msg_to_player(player_manager::MsgToPlayer::Playboard(
-                                            &playboard,
-                                        ))
-                                        .await;
-                                    players
-                                        .get_mut(&player_on_move)
-                                        .unwrap()
-                                        .send_msg_to_player(player_manager::MsgToPlayer::Playboard(
-                                            &playboard,
-                                        ))
-                                        .await;
-
-                                    players
-                                        .get_mut(&!player_on_move)
-                                        .unwrap()
-                                        .send_msg_to_player(
-                                            player_manager::MsgToPlayer::YourAreOnMove,
-                                        )
-                                        .await;
-                                    players
-                                        .get_mut(&player_on_move)
-                                        .unwrap()
-                                        .send_msg_to_player(
-                                            player_manager::MsgToPlayer::OtherPlayerIsOnMove,
-                                        )
-                                        .await;
-
-                                    game_stage = GameStage::PlayerOnMove(!player_on_move);
-                                }
-                                Err(err) => match err {
-                                    playboard::InvalidMove::AlreadyUsed => {
-                                        player_
+                                        players
+                                            .get_mut(&!player_on_move)
+                                            .unwrap()
                                             .send_msg_to_player(
-                                                player_manager::MsgToPlayer::AlreadyTaken,
+                                                player_manager::MsgToPlayer::Playboard(&playboard),
                                             )
                                             .await;
-                                    }
-                                    _ => {
-                                        player_
+                                        players
+                                            .get_mut(&player_on_move)
+                                            .unwrap()
                                             .send_msg_to_player(
-                                                player_manager::MsgToPlayer::InvalidInput,
+                                                player_manager::MsgToPlayer::Playboard(&playboard),
                                             )
-                                            .await
+                                            .await;
+
+                                        players
+                                            .get_mut(&!player_on_move)
+                                            .unwrap()
+                                            .send_msg_to_player(
+                                                player_manager::MsgToPlayer::YourAreOnMove,
+                                            )
+                                            .await;
+                                        players
+                                            .get_mut(&player_on_move)
+                                            .unwrap()
+                                            .send_msg_to_player(
+                                                player_manager::MsgToPlayer::OtherPlayerIsOnMove,
+                                            )
+                                            .await;
+
+                                        game_stage = GameStage::PlayerOnMove(!player_on_move);
                                     }
+                                    Err(err) => match err {
+                                        playboard::InvalidMove::AlreadyUsed => {
+                                            player_
+                                                .send_msg_to_player(
+                                                    player_manager::MsgToPlayer::AlreadyTaken,
+                                                )
+                                                .await;
+                                        }
+                                        playboard::InvalidMove::InvalidRange => {
+                                            player_
+                                                .send_msg_to_player(
+                                                    player_manager::MsgToPlayer::InvalidInput,
+                                                )
+                                                .await
+                                        }
+                                    },
                                 },
+                                Err(_) => {
+                                    player_
+                                        .send_msg_to_player(
+                                            player_manager::MsgToPlayer::InvalidInput,
+                                        )
+                                        .await
+                                }
                             };
                         }
                         false => {

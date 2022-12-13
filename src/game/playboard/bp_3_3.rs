@@ -38,28 +38,6 @@ impl std::fmt::Display for SingleField {
     }
 }
 
-fn convert_input_to_coordinate(input: &str) -> Result<usize, ConvertError> {
-    let value = match input.parse::<usize>() {
-        Ok(x) => x,
-        Err(_) => return Err(ConvertError::InvalidInput),
-    };
-
-    match value < 1 || value > 3 {
-        true => Err(ConvertError::InvalidRange),
-        false => Ok(value),
-    }
-}
-
-fn convert_input_to_coordinates(input: &str) -> Result<[usize; 2], ConvertError> {
-    if input.len() != 2 {
-        return Err(ConvertError::InvalidInput);
-    }
-
-    let x = convert_input_to_coordinate(&input[0..1])?;
-    let y = convert_input_to_coordinate(&input[1..2])?;
-    Ok([x - 1, y - 1])
-}
-
 // ---- Get iteration over "lines" ----
 fn get_iter_row(field: &Playboard, row_index: usize) -> std::slice::Iter<'_, SingleField> {
     field.fields[3 * row_index..3 * (row_index + 1)].iter()
@@ -162,30 +140,30 @@ impl Playboard {
     }
 }
 
+fn check_range(value: usize) -> bool {
+    return value > 1 || value < 4;
+}
+
 impl super::Playboard for Playboard {
-    type Input = String;
+    type Position = (usize, usize);
 
     fn new_move(
         &mut self,
-        input: Self::Input,
+        position: Self::Position,
         player_id: super::super::PlayerId,
     ) -> Result<super::ValidMove, super::InvalidMove> {
         // Parse coordinates
-        let [x, y] = match convert_input_to_coordinates(input.as_ref()) {
-            Ok(k) => k,
-            Err(e) => match e {
-                ConvertError::InvalidInput => return Err(super::InvalidMove::InvalidInput),
-                ConvertError::InvalidRange => return Err(super::InvalidMove::InvalidRange),
-            },
-        };
+        if !check_range(position.0) || !check_range(position.1) {
+            return Err(super::InvalidMove::InvalidRange);
+        }
 
         // Already taken
-        if self.fields[3 * x + y].field.is_some() {
+        if self.fields[3 * position.0 + position.1].field.is_some() {
             return Err(super::InvalidMove::AlreadyUsed);
         };
 
         // Save data to field
-        let position = 3 * x + y;
+        let position = 3 * position.0 + position.1;
         self.fields[position] = SingleField {
             field: Some(player_id),
         };

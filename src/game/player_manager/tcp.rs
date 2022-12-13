@@ -250,7 +250,7 @@ impl PlayerManager {
 impl<T> super::PlayerManagerTrait<T> for PlayerManager {
     type NewPlayerData = tokio::net::TcpStream;
     type NewPlayer<'a> = Player;
-    type Output = String;
+    type PlayerMsg = String;
 
     fn create_new_player<'a>(
         &self,
@@ -260,7 +260,7 @@ impl<T> super::PlayerManagerTrait<T> for PlayerManager {
         Player::new(player_id, player_data, self.tx.clone())
     }
 
-    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::Output> {
+    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::PlayerMsg> {
         return self.rx.recv().await.unwrap();
     }
 }

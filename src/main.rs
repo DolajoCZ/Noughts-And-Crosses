@@ -26,10 +26,6 @@ fn set_logger() -> Result<(), log::SetLoggerError> {
     )])
 }
 
-fn test(vstup: String) -> String {
-    vstup
-}
-
 #[tokio::main]
 async fn main() {
     let args = get_args();
@@ -69,7 +65,7 @@ async fn main() {
     game::run_game(
         player_manager,
         game::playboard::bp_3_3::Playboard::new,
-        test,
+        game::converters::from_tcp_to_x_y,
     )
     .await;
 }
