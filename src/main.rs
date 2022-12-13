@@ -62,5 +62,10 @@ async fn main() {
         }
     };
 
-    game::run_game(player_manager, game::playboard::bp_3_3::Playboard::new).await;
+    game::run_game(
+        player_manager,
+        game::playboard::bp_3_3::Playboard::new,
+        game::converters::from_tcp_to_x_y,
+    )
+    .await;
 }
