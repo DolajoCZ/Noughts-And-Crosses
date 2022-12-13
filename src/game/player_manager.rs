@@ -47,11 +47,11 @@ pub trait PlayerTrait<T> {
 }
 
 /// Possible messages sended from player
-pub enum MsgFromPlayer<T> {
+pub enum MsgFromPlayer<T, O> {
     /// New player joined
     Join(T),
     /// Message from player
-    Msg(super::PlayerId, String),
+    Msg(super::PlayerId, O),
     /// Player leave
     Leave(super::PlayerId),
 }
@@ -64,6 +64,8 @@ pub trait PlayerManagerTrait<T> {
     /// Struct returned by create_new_player
     type NewPlayer<'a>: PlayerTrait<T>;
 
+    type PlayerMsg;
+
     /// Creating new player from player_data
     fn create_new_player<'a>(
         &self,
@@ -72,5 +74,5 @@ pub trait PlayerManagerTrait<T> {
     ) -> Self::NewPlayer<'a>;
 
     /// Read new message from players
-    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData>;
+    async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::PlayerMsg>;
 }
