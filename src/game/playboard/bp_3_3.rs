@@ -5,8 +5,8 @@ enum ConvertError {
 }
 
 #[derive(Clone, Copy)]
-struct SingleField {
-    field: Option<super::super::PlayerId>,
+pub struct SingleField {
+    pub field: Option<super::super::PlayerId>,
 }
 
 impl SingleField {
@@ -129,7 +129,7 @@ fn check_for_draw(field: &Playboard) -> bool {
 // ---- Field struct ----
 
 pub struct Playboard {
-    fields: [SingleField; 9],
+    pub fields: [SingleField; 9],
 }
 
 impl Playboard {
@@ -177,32 +177,5 @@ impl super::Playboard for Playboard {
         }
 
         Ok(super::ValidMove::Continue)
-    }
-}
-
-impl std::fmt::Display for Playboard {
-    #[rustfmt::skip]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            " |1|2|3| \r\n\
-             -|-|-|-|-\r\n\
-             1|{}|{}|{}|1\r\n\
-             -|-|-|-|-\r\n\
-             2|{}|{}|{}|2\r\n\
-             -|-|-|-|-\r\n\
-             3|{}|{}|{}|3\r\n\
-             -|-|-|-|-\r\n \
-              |1|2|3| \r\n",
-            self.fields[0],
-            self.fields[1],
-            self.fields[2],
-            self.fields[3],
-            self.fields[4],
-            self.fields[5],
-            self.fields[6],
-            self.fields[7],
-            self.fields[8]
-        )
     }
 }

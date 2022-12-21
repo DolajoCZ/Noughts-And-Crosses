@@ -49,18 +49,23 @@ impl std::ops::Not for PlayerId {
 }
 
 /// Run game
-pub async fn run_game<T, U, V, W>(mut player_manager: T, create_playboard: V, converter: W)
-where
-    T: player_manager::PlayerManagerTrait<U>,
-    U: playboard::Playboard + std::fmt::Display + std::marker::Sync,
-    V: Fn() -> U,
-    W: Fn(T::PlayerMsg) -> converters::ConversionResult<U::Position>,
+pub async fn run_game<T, R, U, V, W>(
+    mut player_manager: T,
+    create_pb: U,
+    convert_player_msg_to_coordinates: V,
+    convert_pb_for_pm: W,
+) where
+    T: player_manager::PlayerManagerTrait,
+    R: playboard::Playboard,
+    U: Fn() -> R,
+    V: Fn(T::PlayerMsg) -> converters::ConversionResult<R::Position>,
+    W: Fn(&R) -> <<T as player_manager::PlayerManagerTrait>::NewPlayer as player_manager::PlayerTrait>::FieldRepresentation,
 {
     let mut game_stage = GameStage::WaitingForPlayers;
 
-    let mut playboard = create_playboard();
+    let mut playboard = create_pb();
 
-    let mut players: std::collections::HashMap<PlayerId, T::NewPlayer<'_>> =
+    let mut players: std::collections::HashMap<PlayerId, T::NewPlayer> =
         std::collections::HashMap::with_capacity(2);
 
     loop {
@@ -95,10 +100,11 @@ where
                             player
                                 .send_msg_to_player(player_manager::MsgToPlayer::PlayersAreReady)
                                 .await;
+
+                            let x = convert_pb_for_pm(&playboard);
+
                             player
-                                .send_msg_to_player(player_manager::MsgToPlayer::Playboard(
-                                    &playboard,
-                                ))
+                                .send_msg_to_player(player_manager::MsgToPlayer::Playboard(x))
                                 .await;
                         }
 
@@ -128,7 +134,7 @@ where
                         true => {
                             let player_ = players.get_mut(&player_on_move).unwrap();
 
-                            match converter(msg) {
+                            match convert_player_msg_to_coordinates(msg) {
                                 Ok(position) => match playboard.new_move(position, player_id) {
                                     Ok(res) => {
                                         match res {
@@ -138,7 +144,7 @@ where
                                                     player
                                                         .send_msg_to_player(
                                                             player_manager::MsgToPlayer::Playboard(
-                                                                &playboard,
+                                                                convert_pb_for_pm(&playboard),
                                                             ),
                                                         )
                                                         .await;
@@ -149,14 +155,15 @@ where
                                                         )
                                                         .await;
                                                 }
-                                                playboard = create_playboard();
+                                                playboard = create_pb();
                                             }
                                             playboard::ValidMove::Win => {
+                                                let x = convert_pb_for_pm(&playboard);
                                                 for player in players.values_mut() {
                                                     player
                                                         .send_msg_to_player(
                                                             player_manager::MsgToPlayer::Playboard(
-                                                                &playboard,
+                                                                convert_pb_for_pm(&playboard),
                                                             ),
                                                         )
                                                         .await;
@@ -178,22 +185,27 @@ where
                                                     )
                                                     .await;
 
-                                                playboard = create_playboard();
+                                                playboard = create_pb();
                                             }
                                         }
+                                        let x = convert_pb_for_pm(&playboard);
 
                                         players
                                             .get_mut(&!player_on_move)
                                             .unwrap()
                                             .send_msg_to_player(
-                                                player_manager::MsgToPlayer::Playboard(&playboard),
+                                                player_manager::MsgToPlayer::Playboard(
+                                                    convert_pb_for_pm(&playboard),
+                                                ),
                                             )
                                             .await;
                                         players
                                             .get_mut(&player_on_move)
                                             .unwrap()
                                             .send_msg_to_player(
-                                                player_manager::MsgToPlayer::Playboard(&playboard),
+                                                player_manager::MsgToPlayer::Playboard(
+                                                    convert_pb_for_pm(&playboard),
+                                                ),
                                             )
                                             .await;
 
@@ -256,7 +268,7 @@ where
                 players.remove(&id);
 
                 if let GameStage::PlayerOnMove(_) = game_stage {
-                    playboard = create_playboard();
+                    playboard = create_pb();
                 }
 
                 if players.len() == 1 {

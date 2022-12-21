@@ -119,12 +119,11 @@ impl Player {
 }
 
 #[async_trait::async_trait]
-impl<T> super::PlayerTrait<T> for Player {
-    async fn send_msg_to_player(&mut self, msg: super::MsgToPlayer<'_, T>)
-    where
-        T: std::fmt::Display + std::marker::Sync,
-    {
-        let mut text = match msg {
+impl super::PlayerTrait for Player {
+    type FieldRepresentation = String;
+
+    async fn send_msg_to_player(&mut self, msg: super::MsgToPlayer<Self::FieldRepresentation>) {
+        let mut text = match &msg {
             super::MsgToPlayer::WelcomePlayer => "Welcome player\r\n".to_owned(),
             super::MsgToPlayer::WaitingForOtherPlayer => {
                 "We are waiting for another player\r\n".to_owned()
@@ -159,7 +158,7 @@ impl<T> super::PlayerTrait<T> for Player {
             _ => {
                 text = format!(
                     "[{}] {}",
-                    <Player as super::PlayerTrait<T>>::get_player_id(self),
+                    <Player as super::PlayerTrait>::get_player_id(self),
                     text
                 )
             }
@@ -247,16 +246,16 @@ impl PlayerManager {
 }
 
 #[async_trait::async_trait]
-impl<T> super::PlayerManagerTrait<T> for PlayerManager {
+impl super::PlayerManagerTrait for PlayerManager {
     type NewPlayerData = tokio::net::TcpStream;
-    type NewPlayer<'a> = Player;
+    type NewPlayer = Player;
     type PlayerMsg = String;
 
     fn create_new_player<'a>(
         &self,
         player_id: super::super::PlayerId,
         player_data: Self::NewPlayerData,
-    ) -> Self::NewPlayer<'a> {
+    ) -> Self::NewPlayer {
         Player::new(player_id, player_data, self.tx.clone())
     }
 

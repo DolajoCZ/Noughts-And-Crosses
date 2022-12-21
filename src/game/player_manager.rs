@@ -2,10 +2,7 @@
 pub mod tcp;
 
 /// Possible messages sended to player
-pub enum MsgToPlayer<'a, T>
-where
-    T: std::fmt::Display,
-{
+pub enum MsgToPlayer<T> {
     /// Welcome to new player
     WelcomePlayer,
     /// Waiting for another player
@@ -31,19 +28,19 @@ where
     /// Draw
     Draw,
     /// Send playboard
-    Playboard(&'a T),
+    Playboard(T),
 }
 
 /// Trait for player struct
 #[async_trait::async_trait]
-pub trait PlayerTrait<T> {
+pub trait PlayerTrait {
+    type FieldRepresentation;
+
     /// Get player id
     fn get_player_id(&self) -> super::PlayerId;
 
     /// Send new message to player
-    async fn send_msg_to_player(&mut self, msg: MsgToPlayer<'_, T>)
-    where
-        T: std::fmt::Display + std::marker::Sync;
+    async fn send_msg_to_player(&mut self, msg: MsgToPlayer<Self::FieldRepresentation>);
 }
 
 /// Possible messages sended from player
@@ -58,20 +55,20 @@ pub enum MsgFromPlayer<T, O> {
 
 /// Trait for player manager struct
 #[async_trait::async_trait]
-pub trait PlayerManagerTrait<T> {
+pub trait PlayerManagerTrait {
     /// Struct containing necessary data for crating new player
     type NewPlayerData;
     /// Struct returned by create_new_player
-    type NewPlayer<'a>: PlayerTrait<T>;
+    type NewPlayer: PlayerTrait;
 
     type PlayerMsg;
 
     /// Creating new player from player_data
-    fn create_new_player<'a>(
+    fn create_new_player(
         &self,
         player_id: super::PlayerId,
         player_data: Self::NewPlayerData,
-    ) -> Self::NewPlayer<'a>;
+    ) -> Self::NewPlayer;
 
     /// Read new message from players
     async fn receive_new_message(&mut self) -> MsgFromPlayer<Self::NewPlayerData, Self::PlayerMsg>;
