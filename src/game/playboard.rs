@@ -1,5 +1,5 @@
 /// Module for playboard traits
-pub mod bp_3_3;
+pub mod pb_n_n;
 
 /// Enum for invalid operation on playboard
 pub enum InvalidMove {

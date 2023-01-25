@@ -57,13 +57,22 @@ pub async fn run_game<T, R, U, V, W>(
 ) where
     T: player_manager::PlayerManagerTrait,
     R: playboard::Playboard,
-    U: Fn() -> R,
+    U: Fn() -> Result<R, Box<dyn std::error::Error>>,
     V: Fn(T::PlayerMsg) -> converters::ConversionResult<R::Position>,
     W: Fn(&R) -> <<T as player_manager::PlayerManagerTrait>::NewPlayer as player_manager::PlayerTrait>::FieldRepresentation,
 {
     let mut game_stage = GameStage::WaitingForPlayers;
 
-    let mut playboard = create_pb();
+    let mut playboard = match create_pb() {
+        Ok(x) => x,
+        Err(e) => {
+            log::error!(
+                "Playboard is not possible to create due to following error: {}",
+                e
+            );
+            return;
+        }
+    };
 
     let mut players: std::collections::HashMap<PlayerId, T::NewPlayer> =
         std::collections::HashMap::with_capacity(2);
@@ -155,7 +164,7 @@ pub async fn run_game<T, R, U, V, W>(
                                                         )
                                                         .await;
                                                 }
-                                                playboard = create_pb();
+                                                playboard = create_pb().unwrap();
                                             }
                                             playboard::ValidMove::Win => {
                                                 let x = convert_pb_for_pm(&playboard);
@@ -185,7 +194,7 @@ pub async fn run_game<T, R, U, V, W>(
                                                     )
                                                     .await;
 
-                                                playboard = create_pb();
+                                                playboard = create_pb().unwrap();
                                             }
                                         }
                                         let x = convert_pb_for_pm(&playboard);
@@ -268,7 +277,7 @@ pub async fn run_game<T, R, U, V, W>(
                 players.remove(&id);
 
                 if let GameStage::PlayerOnMove(_) = game_stage {
-                    playboard = create_pb();
+                    playboard = create_pb().unwrap();
                 }
 
                 if players.len() == 1 {
